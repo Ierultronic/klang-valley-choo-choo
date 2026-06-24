@@ -48,11 +48,8 @@ type RoutePlanResult = {
   routes: RoutePlanRoute[]; from_stop: Station; to_stop: Station
 }
 
-function Backdrop({ onClick }: { onClick: () => void }) {
-  return <div onClick={onClick} style={{ position: 'fixed', inset: 0, zIndex: 998, background: 'rgba(0,0,0,.3)' }} />
-}
-
 function delayColor(sec: number): string {
+  if (sec <= 0) return '#22c55e'
   if (sec < 120) return '#22c55e'
   if (sec < 300) return '#eab308'
   return '#ef4444'
@@ -61,9 +58,9 @@ function delayColor(sec: number): string {
 function createIcon(color: string) {
   return L.divIcon({
     className: '',
-    html: `<div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    html: `<div style="width:12px;height:12px;background:${color};border-radius:50%;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div>`,
+    iconSize: [12, 12],
+    iconAnchor: [6, 6],
   })
 }
 
@@ -79,12 +76,10 @@ function VehicleMarker({ v }: { v: Vehicle }) {
   return (
     <Marker position={[v.lat, v.lon]} icon={createIcon(color)}>
       <Popup>
-        <div style={{ fontSize: 14, lineHeight: 1.6 }}>
-          <b>{v.vehicle_id}</b><br />
-          Route: {v.route_id || 'unknown'}<br />
-          Delay: {v.delay_seconds > 0 ? `${Math.round(v.delay_seconds / 60)} min` : 'on time'}<br />
-          Speed: {(v.speed || 0).toFixed(1)} km/h
-        </div>
+        <b>{v.vehicle_id}</b><br />
+        Route: {v.route_id || 'unknown'}<br />
+        Delay: {v.delay_seconds > 0 ? `${Math.round(v.delay_seconds / 60)} min` : 'on time'}<br />
+        Speed: {(v.speed || 0).toFixed(1)} km/h
       </Popup>
     </Marker>
   )
@@ -147,17 +142,20 @@ function FlyTo({ pos }: { pos: [number, number] | null }) {
 function StationMarkers({ stations, onSelect }: { stations: Station[]; onSelect: (s: Station) => void }) {
   return (
     <>
-      {stations.map(s => {
-        const c = `#${s.route_color || '666'}`
-        return (
+      {stations.map(s => (
         <CircleMarker
           key={s.stop_id}
           center={[s.stop_lat, s.stop_lon]}
-          radius={8}
-          pathOptions={{ color: c, fillColor: c, fillOpacity: 0.8, weight: 3 }}
+          radius={6}
+          pathOptions={{
+            color: s.route_color ? `#${s.route_color}` : '#666',
+            fillColor: s.route_color ? `#${s.route_color}` : '#666',
+            fillOpacity: 0.8,
+            weight: 2,
+          }}
           eventHandlers={{ click: () => onSelect(s) }}
         />
-      )})}
+      ))}
     </>
   )
 }
@@ -184,14 +182,17 @@ function StationPanel({ station, onClose }: { station: Station; onClose: () => v
 
   return (
     <>
-      <Backdrop onClick={onClose} />
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,.3)',
+        }}
+      />
       <div style={{
-        position: 'fixed', top: 10, right: 10, zIndex: 1000,
-        background: 'white', borderRadius: 10, padding: 16,
-        width: 'min(300px, calc(100vw - 24px))',
-        boxShadow: '0 4px 16px rgba(0,0,0,.2)', 
+        position: 'absolute', top: 10, right: 10, zIndex: 1000,
+        background: 'white', borderRadius: 10, padding: 16, width: 300,
+        boxShadow: '0 4px 16px rgba(0,0,0,.2)', fontFamily: 'system-ui, sans-serif',
         maxHeight: 'calc(100vh - 40px)', overflowY: 'auto',
-        overflowWrap: 'break-word',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
           <div>
@@ -230,8 +231,8 @@ function StationPanel({ station, onClose }: { station: Station; onClose: () => v
                       width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
                       background: e.route_color ? `#${e.route_color}` : '#666',
                     }} />
-                    <span style={{ flex: 1, fontSize: 13, color: '#333', overflowWrap: 'break-word' }}>{e.route_name}</span>
-                    <span style={{ fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{e.arrival_time}</span>
+                    <span style={{ flex: 1, fontSize: 13, color: '#333' }}>{e.route_name}</span>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>{e.arrival_time}</span>
                   </div>
                 ))}
               </div>
@@ -246,82 +247,64 @@ function StationPanel({ station, onClose }: { station: Station; onClose: () => v
 function StationSearch({ stations, onSelect, placeholder }: { stations: Station[]; onSelect: (s: Station) => void; placeholder?: string }) {
   const [query, setQuery] = useState('')
   const [focused, setFocused] = useState(false)
-  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({})
-  const inputRef = useRef<HTMLDivElement>(null)
-  const dropRef = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLDivElement>(null)
 
   const filtered = query.trim()
-    ? stations.filter(s => s.stop_name.toLowerCase().includes(query.toLowerCase()))
+    ? stations.filter(s => s.stop_name.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
     : []
 
   useEffect(() => {
-    if (!focused || !inputRef.current) return
-    const r = inputRef.current.getBoundingClientRect()
-    setDropStyle({
-      position: 'fixed',
-      top: r.bottom + 6,
-      left: r.left,
-      width: r.width,
-      zIndex: 9999,
-    })
-  }, [focused, query])
-
-  useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (inputRef.current && !inputRef.current.contains(e.target as Node) &&
-          dropRef.current && !dropRef.current.contains(e.target as Node)) setFocused(false)
+      if (ref.current && !ref.current.contains(e.target as Node)) setFocused(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
   return (
-    <>
-      <div ref={inputRef} style={{ position: 'relative', flex: 1 }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: 'white', border: focused ? '1.5px solid #2563eb' : '1.5px solid transparent',
-          borderRadius: 10, padding: '0 12px',
-          boxShadow: focused
-            ? '0 4px 20px rgba(37,99,235,.15), 0 1px 3px rgba(0,0,0,.08)'
-            : '0 2px 8px rgba(0,0,0,.08)',
-          transition: 'box-shadow .15s, border .15s',
-        }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={focused ? '#2563eb' : '#999'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            placeholder={placeholder || 'Search stations...'}
-            value={query}
-            onChange={e => { setQuery(e.target.value); setFocused(true) }}
-            onFocus={() => setFocused(true)}
+    <div ref={ref} style={{ position: 'relative', flex: 1 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        background: 'white', border: focused ? '1.5px solid #2563eb' : '1.5px solid transparent',
+        borderRadius: 10, padding: '0 12px',
+        boxShadow: focused
+          ? '0 4px 20px rgba(37,99,235,.15), 0 1px 3px rgba(0,0,0,.08)'
+          : '0 2px 8px rgba(0,0,0,.08)',
+        transition: 'box-shadow .15s, border .15s',
+      }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={focused ? '#2563eb' : '#999'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input
+          placeholder={placeholder || 'Search stations...'}
+          value={query}
+          onChange={e => { setQuery(e.target.value); setFocused(true) }}
+          onFocus={() => setFocused(true)}
+          style={{
+            flex: 1, border: 'none', outline: 'none', fontSize: 14, padding: '10px 0',
+            fontFamily: 'system-ui, sans-serif', color: '#1a1a1a',
+            background: 'transparent',
+          }}
+        />
+        {query && (
+          <button
+            onClick={() => setQuery('')}
             style={{
-              flex: 1, border: 'none', outline: 'none', fontSize: 14, padding: '10px 0',
-              color: '#1a1a1a',
-              background: 'transparent',
+              background: '#e5e7eb', border: 'none', borderRadius: '50%', cursor: 'pointer',
+              width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 0, flexShrink: 0, color: '#666', fontSize: 12, lineHeight: 1,
             }}
-          />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              style={{
-                background: '#e5e7eb', border: 'none', borderRadius: '50%', cursor: 'pointer',
-                width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: 0, flexShrink: 0, color: '#666', fontSize: 12, lineHeight: 1,
-              }}
-            >✕</button>
-          )}
-        </div>
+          >✕</button>
+        )}
       </div>
 
       {focused && filtered.length > 0 && (
-        <div ref={dropRef} style={{
-          ...dropStyle,
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
           background: 'white', borderRadius: 10,
-          boxShadow: '0 8px 30px rgba(0,0,0,.12)',
+          boxShadow: '0 8px 30px rgba(0,0,0,.12)', overflow: 'hidden', zIndex: 10,
           border: '1px solid #f0f0f0',
-          maxHeight: 'calc(100vh - 140px)', overflowY: 'auto',
         }}>
           {filtered.map(s => {
             const color = s.route_color ? `#${s.route_color}` : '#999'
@@ -331,9 +314,9 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
                 onClick={() => { onSelect(s); setQuery(s.stop_name); setFocused(false) }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                  padding: '12px 14px', border: 'none', borderBottom: '1px solid #f5f5f5',
+                  padding: '10px 14px', border: 'none', borderBottom: '1px solid #f5f5f5',
                   textAlign: 'left', cursor: 'pointer', fontSize: 13, background: 'white',
-                  transition: 'background .1s',
+                  fontFamily: 'system-ui, sans-serif', transition: 'background .1s',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = '#f8f9ff')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'white')}
@@ -342,7 +325,7 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
                   width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: color,
                   border: `2px solid ${color}33`,
                 }} />
-                <div style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, color: '#1a1a1a', fontSize: 13 }}>{s.stop_name}</div>
                   {s.route_names.length > 0 && (
                     <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>
@@ -350,13 +333,13 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
                     </div>
                   )}
                 </div>
-                <span style={{ color: '#bbb', fontSize: 11, fontFamily: 'monospace', flexShrink: 0 }}>{s.stop_id}</span>
+                <span style={{ color: '#bbb', fontSize: 11, fontFamily: 'monospace' }}>{s.stop_id}</span>
               </button>
             )
           })}
         </div>
       )}
-    </>
+    </div>
   )
 }
 
@@ -395,10 +378,10 @@ function RoutePlanner({ stations, onRouteFound, onClose }: {
 
   return (
     <>
-      <Backdrop onClick={onClose} />
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 998, background: 'rgba(0,0,0,.3)' }} />
       <div style={{
         width: '100%', background: 'white', borderRadius: 12, padding: 16,
-        boxShadow: '0 8px 30px rgba(0,0,0,.12)', 
+        boxShadow: '0 8px 30px rgba(0,0,0,.12)', fontFamily: 'system-ui, sans-serif',
         position: 'relative', zIndex: 999,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -438,7 +421,7 @@ function RoutePlanner({ stations, onRouteFound, onClose }: {
         </div>
 
         <button onClick={findRoute} disabled={!from || !to || loading} style={{
-          width: '100%', padding: '12px', border: 'none', borderRadius: 10, marginTop: 12,
+          width: '100%', padding: '10px', border: 'none', borderRadius: 10, marginTop: 12,
           background: from && to ? '#2563eb' : '#e5e7eb', color: from && to ? 'white' : '#999',
           fontSize: 14, fontWeight: 600, cursor: from && to ? 'pointer' : 'default',
           transition: 'all .15s', letterSpacing: '.01em',
@@ -465,8 +448,8 @@ function RoutePlanner({ stations, onRouteFound, onClose }: {
                 <button
                   onClick={() => setExpandedIdx(expanded ? null : i)}
                   style={{
-                    width: '100%', padding: '12px', borderRadius: 8, border: 'none',
-                    textAlign: 'left', cursor: 'pointer', 
+                    width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none',
+                    textAlign: 'left', cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
                     background: `#${color}08`, borderLeft: `3px solid #${color}`,
                     display: 'flex', alignItems: 'center', gap: 8,
                     transition: 'background .1s',
@@ -608,24 +591,40 @@ export function TransitMap() {
       <div style={{
         position: 'absolute', top: 12, right: 12,
         zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8,
-        width: 320, maxWidth: 'calc(100vw - 24px)',
+        width: 320, maxWidth: 'calc(100vw - 40px)',
         maxHeight: 'calc(100vh - 60px)', overflowY: 'auto',
       }}>
         <div style={{
           display: 'flex', gap: 2, padding: 3, background: '#f1f3f5', borderRadius: 10,
         }}>
-          {[
-            { id: 'stations', label: '🏙 Stations', active: !showRoutePlanner, onClick: () => { setShowRoutePlanner(false); setHighlightRoute(undefined) } },
-            { id: 'routes', label: '↔ Routes', active: showRoutePlanner, onClick: () => { setShowRoutePlanner(true); setSelectedStation(null) } },
-          ].map(t => (
-            <button key={t.id} onClick={t.onClick} style={{
-              flex: 1, padding: '8px 12px', border: 'none', cursor: 'pointer', fontSize: 13,
-              fontWeight: 600, borderRadius: 7,
-              background: t.active ? 'white' : 'transparent',
-              color: t.active ? '#1a1a1a' : '#888',
-              boxShadow: t.active ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
-            }}>{t.label}</button>
-          ))}
+          <button
+            onClick={() => { setShowRoutePlanner(false); setHighlightRoute(undefined) }}
+            style={{
+              padding: '5px 16px', border: 'none', cursor: 'pointer', fontSize: 12,
+              fontWeight: 600, fontFamily: 'system-ui, sans-serif',
+              borderRadius: 7, letterSpacing: '.02em',
+              background: !showRoutePlanner ? 'white' : 'transparent',
+              color: !showRoutePlanner ? '#1a1a1a' : '#888',
+              boxShadow: !showRoutePlanner ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
+              transition: 'all .15s',
+            }}
+          >
+            <span style={{ marginRight: 5 }}>🏙</span> Stations
+          </button>
+          <button
+            onClick={() => { setShowRoutePlanner(true); setSelectedStation(null) }}
+            style={{
+              padding: '5px 16px', border: 'none', cursor: 'pointer', fontSize: 12,
+              fontWeight: 600, fontFamily: 'system-ui, sans-serif',
+              borderRadius: 7, letterSpacing: '.02em',
+              background: showRoutePlanner ? 'white' : 'transparent',
+              color: showRoutePlanner ? '#1a1a1a' : '#888',
+              boxShadow: showRoutePlanner ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
+              transition: 'all .15s',
+            }}
+          >
+            <span style={{ marginRight: 5 }}>↔</span> Routes
+          </button>
         </div>
 
         {!showRoutePlanner ? (
@@ -644,12 +643,18 @@ export function TransitMap() {
       </div>
 
       {highlightRoute && !showRoutePlanner && (
-        <button onClick={() => setHighlightRoute(undefined)} style={{
+        <div style={{
           position: 'absolute', bottom: 50, left: '50%', transform: 'translateX(-50%)',
           zIndex: 1000, background: 'white', borderRadius: 10, padding: '8px 16px',
-          boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 13, border: 'none',
-          display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
-        }}>📍 Clear highlight</button>
+          boxShadow: '0 4px 16px rgba(0,0,0,.12)', fontSize: 13,
+          fontFamily: 'system-ui, sans-serif', display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ color: '#666' }}>📍 Route highlighted on map</span>
+          <button onClick={() => setHighlightRoute(undefined)} style={{
+            background: '#f1f3f5', border: 'none', borderRadius: 6, padding: '4px 10px',
+            cursor: 'pointer', fontSize: 12, color: '#555', fontWeight: 500,
+          }}>Clear</button>
+        </div>
       )}
 
       <MapContainer center={KL_CENTER} zoom={12} style={{ height: '100%', width: '100%' }}>
