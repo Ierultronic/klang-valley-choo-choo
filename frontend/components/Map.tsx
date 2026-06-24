@@ -249,7 +249,7 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
   const ref = useRef<HTMLDivElement>(null)
 
   const filtered = query.trim()
-    ? stations.filter(s => s.stop_name.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
+    ? stations.filter(s => s.stop_name.toLowerCase().includes(query.toLowerCase())).slice(0, 20)
     : []
 
   useEffect(() => {
@@ -302,8 +302,9 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
           background: 'white', borderRadius: 10,
-          boxShadow: '0 8px 30px rgba(0,0,0,.12)', overflow: 'hidden', zIndex: 10,
+          boxShadow: '0 8px 30px rgba(0,0,0,.12)', overflowY: 'auto', zIndex: 10,
           border: '1px solid #f0f0f0',
+          maxHeight: 'min(400px, calc(100vh - 200px))',
         }}>
           {filtered.map(s => {
             const color = s.route_color ? `#${s.route_color}` : '#999'
