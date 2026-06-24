@@ -98,7 +98,7 @@ function ShapeLines({ shapes, routes, highlight }: { shapes: Shape[]; routes: Ro
           <Polyline
             key={s.shape_id}
             positions={s.points.map(p => [p.lat, p.lon])}
-            pathOptions={{ color, weight: isHL ? 5 : 3, opacity: isHL ? 0.9 : 0.4 }}
+            pathOptions={{ color, weight: isHL ? 6 : 4, opacity: isHL ? 1 : 0.7 }}
           />
         )
       })}
