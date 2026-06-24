@@ -40,8 +40,8 @@ export function ServiceBar() {
     <div style={{
       position: 'absolute', top: 10, left: 10, zIndex: 1000,
       background: 'white', borderRadius: 8, padding: 12,
-      boxShadow: '0 2px 8px rgba(0,0,0,.15)', maxWidth: 280,
-      fontFamily: 'system-ui, sans-serif', fontSize: 13,
+      boxShadow: '0 2px 8px rgba(0,0,0,.15)', maxWidth: 'min(280px, calc(100vw - 24px))',
+      fontSize: 13,
     }}>
       <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600 }}>
         Service Status

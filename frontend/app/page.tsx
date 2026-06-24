@@ -13,9 +13,9 @@ export default function Home() {
       <TransitMap />
       <ServiceBar />
       <div style={{
-        position: 'absolute', bottom: 10, right: 10, zIndex: 1000,
-        background: 'white', padding: '4px 10px', borderRadius: 6,
-        fontSize: 12, boxShadow: '0 1px 4px rgba(0,0,0,.15)',
+        position: 'absolute', bottom: 4, left: 4, zIndex: 1000,
+        background: 'rgba(255,255,255,.85)', padding: '3px 8px', borderRadius: 5,
+        fontSize: 11, color: '#666',
       }}>
         Data from data.gov.my &bull; Updated every 30s
       </div>
