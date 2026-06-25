@@ -166,7 +166,8 @@ function minsUntil(arrival: string): string {
   const myt = new Date(n.getTime() + (8 - n.getTimezoneOffset() / 60) * 3600000)
   const d = h * 60 + m - (myt.getHours() * 60 + myt.getMinutes())
   if (d <= 0) return 'now'
-  return `${d} min`
+  if (d < 60) return `${d} min`
+  return `${Math.floor(d / 60)}h ${d % 60}m`
 }
 
 function StationPanel({ station, onClose }: { station: Station; onClose: () => void }) {
