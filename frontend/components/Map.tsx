@@ -189,7 +189,7 @@ function StationPanel({ station, onClose }: { station: Station; onClose: () => v
         }}
       />
       <div style={{
-        position: 'absolute', top: 10, right: 10, zIndex: 1000,
+        position: 'fixed', top: 10, right: 10, zIndex: 1000,
         background: 'white', borderRadius: 10, padding: 16, width: 300,
         boxShadow: '0 4px 16px rgba(0,0,0,.2)', fontFamily: 'system-ui, sans-serif',
         maxHeight: 'calc(100vh - 40px)', overflowY: 'auto',
@@ -680,8 +680,8 @@ export function TransitMap() {
         {vehicles.map(v => <VehicleMarker key={v.vehicle_id} v={v} />)}
         <UserLocation />
         <FlyTo pos={flyPos} />
-        {selectedStation && <StationPanel station={selectedStation} onClose={() => setSelectedStation(null)} />}
       </MapContainer>
+      {selectedStation && <StationPanel station={selectedStation} onClose={() => setSelectedStation(null)} />}
     </div>
   )
 }
