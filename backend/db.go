@@ -133,6 +133,7 @@ ALTER TABLE IF EXISTS stop_times DROP CONSTRAINT IF EXISTS stop_times_trip_id_fk
 ALTER TABLE IF EXISTS stop_times DROP CONSTRAINT IF EXISTS stop_times_stop_id_fkey;
 ALTER TABLE IF EXISTS trips DROP CONSTRAINT IF EXISTS trips_route_id_fkey;
 ALTER TABLE IF EXISTS routes DROP CONSTRAINT IF EXISTS routes_agency_id_fkey;
+ALTER TABLE IF EXISTS trips ADD COLUMN IF NOT EXISTS trip_headsign TEXT;
 `
 
 func RunMigrations(pool *pgxpool.Pool) error {
