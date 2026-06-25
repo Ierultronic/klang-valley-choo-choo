@@ -160,6 +160,15 @@ function StationMarkers({ stations, onSelect }: { stations: Station[]; onSelect:
   )
 }
 
+function minsUntil(arrival: string): string {
+  const [h, m] = arrival.split(':').map(Number)
+  const n = new Date()
+  const myt = new Date(n.getTime() + (8 - n.getTimezoneOffset() / 60) * 3600000)
+  const d = h * 60 + m - (myt.getHours() * 60 + myt.getMinutes())
+  if (d <= 0) return 'now'
+  return `${d} min`
+}
+
 function StationPanel({ station, onClose }: { station: Station; onClose: () => void }) {
   const [etas, setEtas] = useState<ETA[]>([])
   const [loading, setLoading] = useState(true)
@@ -232,7 +241,7 @@ function StationPanel({ station, onClose }: { station: Station; onClose: () => v
                       background: e.route_color ? `#${e.route_color}` : '#666',
                     }} />
                     <span style={{ flex: 1, fontSize: 13, color: '#333' }}>{e.route_name}</span>
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>{e.arrival_time}</span>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>{e.arrival_time} <span style={{ fontWeight: 400, fontSize: 11, color: '#888' }}>({minsUntil(e.arrival_time)})</span></span>
                   </div>
                 ))}
               </div>
