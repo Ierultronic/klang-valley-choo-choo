@@ -540,7 +540,7 @@ export function TransitMap() {
                       style={{
                         width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none',
                         textAlign: 'left', cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
-                        background: `#${color}08`, borderLeft: `3px solid #${color}`,
+                        background: '#ffffff', borderLeft: `3px solid #${color}`,
                         display: 'flex', alignItems: 'center', gap: 8,
                         transition: 'background .1s',
                       }}
