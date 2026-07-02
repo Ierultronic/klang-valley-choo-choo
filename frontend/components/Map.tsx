@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react
 import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/+$/, '')
 const KL_CENTER: [number, number] = [3.1390, 101.6869]
 
 type Vehicle = {
