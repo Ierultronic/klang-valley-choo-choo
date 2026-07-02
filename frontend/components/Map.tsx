@@ -382,191 +382,7 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
   )
 }
 
-function RoutePlanner({ stations, onRouteFound, onClose }: {
-  stations: Station[]; onRouteFound: (from: Station, to: Station, routes: RoutePlanRoute[]) => void; onClose: () => void
-}) {
-  const [from, setFrom] = useState<Station | null>(null)
-  const [to, setTo] = useState<Station | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<RoutePlanRoute[] | null>(null)
-  const [error, setError] = useState('')
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(null)
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
-
-  const findRoute = async () => {
-    if (!from || !to) return
-    if (from.stop_id === to.stop_id) { setError('Start and end must be different'); return }
-    setLoading(true); setError(''); setResults(null)
-    try {
-      const res = await fetch(`${API}/api/route-plan?from=${from.stop_id}&to=${to.stop_id}`)
-      if (!res.ok) { setError('No routes found'); setLoading(false); return }
-      const data: RoutePlanResult = await res.json()
-      if (data.routes.length === 0) { setError('No direct route between these stations'); setLoading(false); return }
-      setResults(data.routes)
-      onRouteFound(data.from_stop, data.to_stop, data.routes)
-    } catch { setError('Failed to find route') }
-    setLoading(false)
-  }
-
-  const swap = () => { setFrom(to); setTo(from); setResults(null); setError('') }
-  const ready = from && to
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 998, background: 'rgba(0,0,0,.3)' }} />
-      <div style={{
-        width: '100%', background: 'rgba(255,255,255,.70)', borderRadius: 12, padding: 16,
-        boxShadow: '0 8px 30px rgba(0,0,0,.12)', fontFamily: 'system-ui, sans-serif',
-        position: 'relative', zIndex: 999, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <span style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a' }}>Plan a route</span>
-          <button onClick={onClose} style={{
-            background: '#f1f3f5', border: 'none', borderRadius: 8,
-            width: 28, height: 28, cursor: 'pointer', color: '#666',
-            fontSize: 15, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>✕</button>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: 8, background: '#e8f4e8',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, color: '#16a34a', fontSize: 14, fontWeight: 700,
-            }}>A</div>
-            <StationSearch stations={stations} onSelect={setFrom} placeholder="From..." />
-            <button onClick={swap} style={{
-              width: 28, height: 28, borderRadius: 8, background: '#f1f3f5',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: 'none', cursor: 'pointer', flexShrink: 0,
-              fontSize: 14, color: '#666',
-            }}>⇄</button>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: 8, background: '#fef2f2',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, color: '#dc2626', fontSize: 14, fontWeight: 700,
-            }}>B</div>
-            <StationSearch stations={stations} onSelect={setTo} placeholder="To..." />
-          </div>
-        </div>
-
-        <button onClick={findRoute} disabled={!ready || loading} style={{
-          width: '100%', padding: '10px', border: 'none', borderRadius: 10, marginTop: 12,
-          background: ready ? '#2563eb' : '#e5e7eb', color: ready ? 'white' : '#999',
-          fontSize: 14, fontWeight: 600, cursor: ready ? 'pointer' : 'default',
-          transition: 'all .15s', letterSpacing: '.01em',
-        }}>
-          {loading ? 'Searching...' : ready ? `Find route from ${from.stop_name} to ${to.stop_name}` : 'Select two stations'}
-        </button>
-
-        {error && <div style={{
-          color: '#dc2626', fontSize: 13, marginTop: 10, textAlign: 'center',
-          padding: '8px 12px', background: '#fef2f2', borderRadius: 8,
-        }}>{error}</div>}
-
-        {results && results.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 12, color: '#888', marginBottom: 8, fontWeight: 500 }}>
-              {results.length} route{results.length > 1 ? 's' : ''} found
-            </div>
-            {results.map((r, i) => {
-              const expanded = expandedIdx === i
-              const color = r.legs[0]?.route_color || 'ccc'
-              const totalStops = r.legs.reduce((s, l) => s + (l.stops?.length || 0), 0)
-              return (
-              <div key={i} style={{ marginBottom: 6 }}>
-                <button
-                  onClick={() => setExpandedIdx(expanded ? null : i)}
-                  style={{
-                    width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none',
-                    textAlign: 'left', cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
-                    background: `#${color}08`, borderLeft: `3px solid #${color}`,
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    transition: 'background .1s',
-                  }}
-                >
-                  <div style={{
-                    width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                    background: `#${color}`, border: `2px solid #${color}44`,
-                  }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: '#1a1a1a' }}>
-                      {r.legs.length === 1 ? r.legs[0].route_name : `${r.legs[0].route_name} → ${r.legs[1].route_name}`}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-                      {r.legs[0].from_stop.stop_name} → {r.legs[r.legs.length-1].to_stop.stop_name}
-                      {totalStops > 0 && ` · ${totalStops} stop${totalStops !== 1 ? 's' : ''}`}
-                    </div>
-                  </div>
-                  <span style={{ color: '#999', fontSize: 11, transition: 'transform .15s', transform: expanded ? 'rotate(180deg)' : 'none' }}>▼</span>
-                </button>
-
-                {expanded && (
-                  <div style={{
-                    marginTop: 4, padding: '6px 12px 10px 12px',
-                    background: '#fafafa', borderRadius: 8,
-                    border: '1px solid #f0f0f0',
-                  }}>
-                    {r.legs.map((leg, li) => (
-                      <div key={li}>
-                        {li > 0 && (
-                          <div style={{
-                            display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0',
-                            fontSize: 11, color: '#2563eb', fontWeight: 600,
-                          }}>
-                            <span style={{ flex: 1, height: 1, background: '#dbeafe' }} />
-                            Transfer at {r.transfer_at?.stop_name}
-                            <span style={{ flex: 1, height: 1, background: '#dbeafe' }} />
-                          </div>
-                        )}
-                        <div>
-                          <div style={{ fontSize: 11, color: '#888', marginBottom: 4, fontWeight: 600 }}>
-                            <span style={{ color: `#${leg.route_color}` }}>●</span> {leg.route_name}
-                            <span style={{ fontWeight: 400, color: '#aaa' }}> · {leg.stops?.length} stops</span>
-                          </div>
-                          <div style={{ position: 'relative' }}>
-                            {(leg.stops || []).map((name, si) => (
-                              <div key={si} style={{
-                                display: 'flex', alignItems: 'center', gap: 8,
-                                padding: '3px 0', position: 'relative',
-                              }}>
-                                <div style={{
-                                  width: 12, height: 12, borderRadius: '50%', flexShrink: 0, zIndex: 1,
-                                  background: si === 0 || si === (leg.stops?.length || 0) - 1
-                                    ? `#${leg.route_color}` : 'white',
-                                  border: `2px solid #${leg.route_color}`,
-                                }} />
-                                <div style={{
-                                  fontSize: 12, color: '#1a1a1a', fontWeight: si === 0 || si === (leg.stops?.length || 0) - 1 ? 600 : 400,
-                                }}>
-                                  {name}
-                                  {si === 0 && <span style={{ color: '#888', fontWeight: 400, marginLeft: 4, fontSize: 10 }}>(start)</span>}
-                                  {si === (leg.stops?.length || 0) - 1 && <span style={{ color: li < r.legs.length - 1 ? '#2563eb' : '#16a34a', fontWeight: 400, marginLeft: 4, fontSize: 10 }}>({li < r.legs.length - 1 ? 'transfer' : 'end'})</span>}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )})}
-          </div>
-        )}
-      </div>
-    </>
-  )
-}
 
 export function TransitMap() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
@@ -577,6 +393,35 @@ export function TransitMap() {
   const [showRoutePlanner, setShowRoutePlanner] = useState(false)
   const [highlightRoute, setHighlightRoute] = useState<string | undefined>()
   const [flyPos, setFlyPos] = useState<[number, number] | null>(null)
+  const [routeFrom, setRouteFrom] = useState<Station | null>(null)
+  const [routeTo, setRouteTo] = useState<Station | null>(null)
+  const [routeResults, setRouteResults] = useState<RoutePlanRoute[] | null>(null)
+  const [routeLoading, setRouteLoading] = useState(false)
+  const [routeError, setRouteError] = useState('')
+  const [routeExpandedIdx, setRouteExpandedIdx] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!routeFrom || !routeTo || routeFrom.stop_id === routeTo.stop_id) {
+      setRouteResults(null); setRouteError(''); return
+    }
+    setRouteLoading(true); setRouteError(''); setRouteResults(null)
+    fetch(`${API}/api/route-plan?from=${routeFrom.stop_id}&to=${routeTo.stop_id}`)
+      .then(r => { if (!r.ok) throw Error(); return r.json() })
+      .then(data => {
+        if (data.routes.length === 0) throw Error()
+        setRouteResults(data.routes)
+        setHighlightRoute(data.routes[0].legs[0]?.route_id)
+        const mid = { lat: (routeFrom.stop_lat + routeTo.stop_lat) / 2, lon: (routeFrom.stop_lon + routeTo.stop_lon) / 2 }
+        setFlyPos([mid.lat, mid.lon])
+      })
+      .catch(() => setRouteError('No route found'))
+      .finally(() => setRouteLoading(false))
+  }, [routeFrom, routeTo])
+
+  const swapRoute = () => {
+    const f = routeFrom, t = routeTo
+    setRouteFrom(t); setRouteTo(f)
+  }
 
   const fetchVehicles = useCallback(async () => {
     try {
@@ -603,14 +448,6 @@ export function TransitMap() {
     setSelectedStation(s)
     setShowRoutePlanner(false)
     setFlyPos([s.stop_lat, s.stop_lon])
-  }
-
-  const handleRouteFound = (from: Station, to: Station, plan: RoutePlanRoute[]) => {
-    if (plan.length > 0) {
-      setHighlightRoute(plan[0].legs[0]?.route_id)
-      const mid = { lat: (from.stop_lat + to.stop_lat) / 2, lon: (from.stop_lon + to.stop_lon) / 2 }
-      setFlyPos([mid.lat, mid.lon])
-    }
   }
 
   const handleRouteSelect = (routeId: string) => {
@@ -655,11 +492,113 @@ export function TransitMap() {
             placeholder="Search stations..."
           />
         ) : (
-          <RoutePlanner
-            stations={stations}
-            onRouteFound={handleRouteFound}
-            onClose={() => setShowRoutePlanner(false)}
-          />
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: '#e8f4e8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#16a34a', fontSize: 14, fontWeight: 700 }}>A</div>
+                {routeFrom ? (
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255, 255, 255, 0.7)', borderRadius: 10, padding: '0 12px', boxShadow: '0 2px 8px rgba(0,0,0,.08)', border: '1.5px solid #d1d5dbb3' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#16a34a" stroke="none" style={{ flexShrink: 0 }}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                      <span style={{ flex: 1, fontSize: 14, padding: '10px 0', color: '#1a1a1a', fontFamily: 'system-ui, sans-serif' }}>{routeFrom.stop_name}</span>
+                      <button onClick={() => { setRouteFrom(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null) }} style={{ background: '#e5e7eb', border: 'none', borderRadius: '50%', cursor: 'pointer', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: '#666', fontSize: 12, lineHeight: 1 }}>✕</button>
+                    </div>
+                  </div>
+                ) : (
+                  <StationSearch stations={stations} onSelect={setRouteFrom} placeholder="From..." />
+                )}
+                <button onClick={swapRoute} style={{ width: 28, height: 28, borderRadius: 8, background: '#f1f3f5', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', flexShrink: 0, fontSize: 14, color: '#666' }}>⇄</button>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#dc2626', fontSize: 14, fontWeight: 700 }}>B</div>
+                {routeTo ? (
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255, 255, 255, 0.7)', borderRadius: 10, padding: '0 12px', boxShadow: '0 2px 8px rgba(0,0,0,.08)', border: '1.5px solid #d1d5db' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#dc2626" stroke="none" style={{ flexShrink: 0 }}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                      <span style={{ flex: 1, fontSize: 14, padding: '10px 0', color: '#1a1a1a', fontFamily: 'system-ui, sans-serif' }}>{routeTo.stop_name}</span>
+                      <button onClick={() => { setRouteTo(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null) }} style={{ background: '#e5e7eb', border: 'none', borderRadius: '50%', cursor: 'pointer', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: '#666', fontSize: 12, lineHeight: 1 }}>✕</button>
+                    </div>
+                  </div>
+                ) : (
+                  <StationSearch stations={stations} onSelect={setRouteTo} placeholder="To..." />
+                )}
+              </div>
+            </div>
+
+            {routeLoading && <div style={{ fontSize: 13, color: '#888', textAlign: 'center', padding: '8px 0' }}>Searching routes...</div>}
+            {routeError && <div style={{ color: '#dc2626', fontSize: 13, padding: '8px 12px', background: '#fef2f2', borderRadius: 8 }}>{routeError}</div>}
+
+            {routeResults && routeResults.length > 0 && (
+              <div>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 8, fontWeight: 500 }}>
+                  {routeResults.length} route{routeResults.length > 1 ? 's' : ''} found
+                </div>
+                {routeResults.map((r, i) => {
+                  const expanded = routeExpandedIdx === i
+                  const color = r.legs[0]?.route_color || 'ccc'
+                  const totalStops = r.legs.reduce((s, l) => s + (l.stops?.length || 0), 0)
+                  return (
+                  <div key={i} style={{ marginBottom: 6 }}>
+                    <button
+                      onClick={() => setRouteExpandedIdx(expanded ? null : i)}
+                      style={{
+                        width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none',
+                        textAlign: 'left', cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
+                        background: `#${color}08`, borderLeft: `3px solid #${color}`,
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        transition: 'background .1s',
+                      }}
+                    >
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: `#${color}`, border: `2px solid #${color}44` }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: '#1a1a1a' }}>
+                          {r.legs.length === 1 ? r.legs[0].route_name : `${r.legs[0].route_name} → ${r.legs[1].route_name}`}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                          {r.legs[0].from_stop.stop_name} → {r.legs[r.legs.length-1].to_stop.stop_name}
+                          {totalStops > 0 && ` · ${totalStops} stop${totalStops !== 1 ? 's' : ''}`}
+                        </div>
+                      </div>
+                      <span style={{ color: '#999', fontSize: 11, transition: 'transform .15s', transform: expanded ? 'rotate(180deg)' : 'none' }}>▼</span>
+                    </button>
+                    {expanded && (
+                      <div style={{ marginTop: 4, padding: '6px 12px 10px 12px', background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+                        {r.legs.map((leg, li) => (
+                          <div key={li}>
+                            {li > 0 && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', fontSize: 11, color: '#2563eb', fontWeight: 600 }}>
+                                <span style={{ flex: 1, height: 1, background: '#dbeafe' }} />
+                                Transfer at {r.transfer_at?.stop_name}
+                                <span style={{ flex: 1, height: 1, background: '#dbeafe' }} />
+                              </div>
+                            )}
+                            <div>
+                              <div style={{ fontSize: 11, color: '#888', marginBottom: 4, fontWeight: 600 }}>
+                                <span style={{ color: `#${leg.route_color}` }}>●</span> {leg.route_name}
+                                <span style={{ fontWeight: 400, color: '#aaa' }}> · {leg.stops?.length} stops</span>
+                              </div>
+                              <div style={{ position: 'relative' }}>
+                                {(leg.stops || []).map((name, si) => (
+                                  <div key={si} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', position: 'relative' }}>
+                                    <div style={{ width: 12, height: 12, borderRadius: '50%', flexShrink: 0, zIndex: 1, background: si === 0 || si === (leg.stops?.length || 0) - 1 ? `#${leg.route_color}` : 'white', border: `2px solid #${leg.route_color}` }} />
+                                    <div style={{ fontSize: 12, color: '#1a1a1a', fontWeight: si === 0 || si === (leg.stops?.length || 0) - 1 ? 600 : 400 }}>
+                                      {name}
+                                      {si === 0 && <span style={{ color: '#888', fontWeight: 400, marginLeft: 4, fontSize: 10 }}>(start)</span>}
+                                      {si === (leg.stops?.length || 0) - 1 && <span style={{ color: li < r.legs.length - 1 ? '#2563eb' : '#16a34a', fontWeight: 400, marginLeft: 4, fontSize: 10 }}>({li < r.legs.length - 1 ? 'transfer' : 'end'})</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )})}
+              </div>
+            )}
+          </>
         )}
       </div>}
 
