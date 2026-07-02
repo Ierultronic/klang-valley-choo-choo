@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/+$/, '')
 
 type Status = {
   line_id: string; line_name: string; status: string; remarks: string
