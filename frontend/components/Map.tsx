@@ -263,7 +263,7 @@ function StationPanel({ station, onClose }: { station: Station; onClose: () => v
 function StationSearch({ stations, onSelect, placeholder }: { stations: Station[]; onSelect: (s: Station) => void; placeholder?: string }) {
   const [query, setQuery] = useState('')
   const [focused, setFocused] = useState(false)
-  const [dropStyle, setDropStyle] = useState<React.CSSProperties | null>(null)
+  const [dropStyle, setDropStyle] = useState<React.CSSProperties>({ position: 'fixed', zIndex: 9999 })
   const inputRef = useRef<HTMLDivElement>(null)
   const dropRef = useRef<HTMLDivElement>(null)
 
@@ -331,7 +331,7 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
           </div>
         </div>
 
-        {dropStyle && focused && query.length > 0 && filtered.length > 0 && (
+        {focused && query.length > 0 && filtered.length > 0 && (
           <div ref={dropRef} style={{
             ...dropStyle,
             background: 'rgba(255, 255, 255, 0.8)', borderRadius: 10,
