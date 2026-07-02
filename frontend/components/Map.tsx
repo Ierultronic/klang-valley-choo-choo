@@ -289,10 +289,10 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
 
   return (
     <>
-      <div style={{
-        position: 'relative', flex: 1, width: '100%',
+      <div ref={inputRef} style={{
+        position: 'relative', flex: 1,
       }}>
-        <div ref={inputRef} style={{ position: 'relative', flex: 1 }}>
+        <div style={{ position: 'relative' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8,
             background: focused ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.7)', border: focused ? '1.5px solid #2563eb' : '1.5px solid transparent',
