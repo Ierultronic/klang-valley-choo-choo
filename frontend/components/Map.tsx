@@ -291,7 +291,7 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
   return (
     <>
       <div style={{
-        position: 'relative'
+        position: 'relative', flex: 1, width: '100%',
       }}>
         <div ref={inputRef} style={{ position: 'relative', flex: 1 }}>
           <div style={{
@@ -332,7 +332,7 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
           </div>
         </div>
 
-        {query.length > 0 && filtered.length > 0 && (
+        {focused && query.length > 0 && filtered.length > 0 && (
           <div ref={dropRef} style={{
             ...dropStyle,
             background: 'rgba(255, 255, 255, 0.8)', borderRadius: 10,
