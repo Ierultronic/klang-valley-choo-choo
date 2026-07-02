@@ -207,9 +207,9 @@ function StationPanel({ station, onClose }: { station: Station; onClose: () => v
       />
       <div style={{
         position: 'fixed', top: 10, right: 10, zIndex: 1000,
-        background: 'white', borderRadius: 10, padding: 16, width: 300,
+        background: 'rgba(255, 255, 255, 0.8)', borderRadius: 10, padding: 16, width: 300,
         boxShadow: '0 4px 16px rgba(0,0,0,.2)', fontFamily: 'system-ui, sans-serif',
-        maxHeight: 'calc(100vh - 40px)', overflowY: 'auto',
+        maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
           <div>
@@ -276,7 +276,7 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
     if (!focused || !inputRef.current) return
     const r = inputRef.current.getBoundingClientRect()
     setDropStyle({
-      position: 'fixed', top: r.bottom + 6, left: r.left, width: r.width, zIndex: 9999,
+      position: 'fixed', top: r.bottom + 6, width: r.width, zIndex: 9999
     })
   }, [focused, query])
 
@@ -291,84 +291,96 @@ function StationSearch({ stations, onSelect, placeholder }: { stations: Station[
 
   return (
     <>
-      <div ref={inputRef} style={{ position: 'relative', flex: 1 }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: 'white', border: focused ? '1.5px solid #2563eb' : '1.5px solid transparent',
-          borderRadius: 10, padding: '0 12px',
-          boxShadow: focused
-            ? '0 4px 20px rgba(37,99,235,.15), 0 1px 3px rgba(0,0,0,.08)'
-            : '0 2px 8px rgba(0,0,0,.08)',
-          transition: 'box-shadow .15s, border .15s',
-        }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={focused ? '#2563eb' : '#999'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            placeholder={placeholder || 'Search stations...'}
-            value={query}
-            onChange={e => { setQuery(e.target.value); setFocused(true) }}
-            onFocus={() => setFocused(true)}
-            style={{
-              flex: 1, border: 'none', outline: 'none', fontSize: 14, padding: '10px 0',
-              fontFamily: 'system-ui, sans-serif', color: '#1a1a1a',
-              background: 'transparent',
-            }}
-          />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
+      <div style={{
+        position: 'relative'
+      }}>
+        <div ref={inputRef} style={{ position: 'relative', flex: 1 }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: focused ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.7)', border: focused ? '1.5px solid #2563eb' : '1.5px solid transparent',
+            borderRadius: 10, padding: '0 12px', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+            boxShadow: focused
+              ? '0 4px 20px rgba(37,99,235,.15), 0 1px 3px rgba(0,0,0,.08)'
+              : '0 2px 8px rgba(0,0,0,.08)',
+            transition: 'box-shadow .15s, border .15s',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={focused ? '#2563eb' : '#999'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              placeholder={placeholder || 'Search stations...'}
+              value={query}
+              onChange={e => { setQuery(e.target.value); setFocused(true) }}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
               style={{
-                background: '#e5e7eb', border: 'none', borderRadius: '50%', cursor: 'pointer',
-                width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: 0, flexShrink: 0, color: '#666', fontSize: 12, lineHeight: 1,
+                flex: 1, border: 'none', outline: 'none', fontSize: 14, padding: '10px 0',
+                fontFamily: 'system-ui, sans-serif', color: '#1a1a1a',
+                background: 'transparent',
               }}
-            >✕</button>
-          )}
-        </div>
-      </div>
-
-      {focused && filtered.length > 0 && (
-        <div ref={dropRef} style={{
-          ...dropStyle,
-          background: 'white', borderRadius: 10,
-          boxShadow: '0 8px 30px rgba(0,0,0,.12)', overflow: 'hidden',
-          border: '1px solid #f0f0f0',
-        }}>
-          {filtered.map(s => {
-            const color = s.route_color ? `#${s.route_color}` : '#999'
-            return (
+            />
+            {query && (
               <button
-                key={s.stop_id}
-                onClick={() => { onSelect(s); setQuery(s.stop_name); setFocused(false) }}
+                onClick={() => setQuery('')}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                  padding: '10px 14px', border: 'none', borderBottom: '1px solid #f5f5f5',
-                  textAlign: 'left', cursor: 'pointer', fontSize: 13, background: 'white',
-                  fontFamily: 'system-ui, sans-serif', transition: 'background .1s',
+                  background: '#e5e7eb', border: 'none', borderRadius: '50%', cursor: 'pointer',
+                  width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: 0, flexShrink: 0, color: '#666', fontSize: 12, lineHeight: 1,
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#f8f9ff')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'white')}
-              >
-                <div style={{
-                  width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: color,
-                  border: `2px solid ${color}33`,
-                }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: '#1a1a1a', fontSize: 13 }}>{s.stop_name}</div>
-                  {s.route_names.length > 0 && (
-                    <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>
-                      {s.route_names.slice(0, 2).join(' · ')}
-                    </div>
-                  )}
-                </div>
-                <span style={{ color: '#bbb', fontSize: 11, fontFamily: 'monospace' }}>{s.stop_id}</span>
-              </button>
-            )
-          })}
+              >✕</button>
+            )}
+          </div>
         </div>
-      )}
+
+        {query.length > 0 && filtered.length > 0 && (
+          <div ref={dropRef} style={{
+            ...dropStyle,
+            background: 'rgba(255, 255, 255, 0.8)', borderRadius: 10,
+            boxShadow: '0 8px 30px rgba(0,0,0,.12)',
+            border: '1px solid #f0f0f0', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+          }}>
+            <div style={{
+              maskImage: "linear-gradient(to bottom, transparent 0px, black 30px, black calc(100% - 20px), transparent 100%)",
+              WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 30px, black calc(100% - 30px), transparent 100%)",
+              scrollbarWidth: 'none', overflow: 'auto', height: 260, paddingBottom: 5, paddingTop: 5,
+              background: 'transparent',
+            }}>
+              {filtered.map(s => {
+                const color = s.route_color ? `#${s.route_color}` : '#999'
+                return (
+                  <button
+                    key={s.stop_id}
+                    onClick={() => { onSelect(s); setQuery(s.stop_name); setFocused(false) }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                      padding: '10px 14px', border: 'none', borderBottom: '1px solid #f5f5f5',
+                      textAlign: 'left', cursor: 'pointer', fontSize: 13, background: 'white',
+                      fontFamily: 'system-ui, sans-serif', transition: 'background .1s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#f8f9ff')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'white')}
+                  >
+                    <div style={{
+                      width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: color,
+                      border: `2px solid ${color}33`,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: '#1a1a1a', fontSize: 13 }}>{s.stop_name}</div>
+                      {s.route_names.length > 0 && (
+                        <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>
+                          {s.route_names.slice(0, 2).join(' · ')}
+                        </div>
+                      )}
+                    </div>
+                    <span style={{ color: '#bbb', fontSize: 11, fontFamily: 'monospace' }}>{s.stop_id}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     </>
   )
 }
@@ -410,9 +422,9 @@ function RoutePlanner({ stations, onRouteFound, onClose }: {
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 998, background: 'rgba(0,0,0,.3)' }} />
       <div style={{
-        width: '100%', background: 'white', borderRadius: 12, padding: 16,
+        width: '100%', background: 'rgba(255,255,255,.70)', borderRadius: 12, padding: 16,
         boxShadow: '0 8px 30px rgba(0,0,0,.12)', fontFamily: 'system-ui, sans-serif',
-        position: 'relative', zIndex: 999,
+        position: 'relative', zIndex: 999, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <span style={{ fontWeight: 700, fontSize: 14, color: '#1a1a1a' }}>Plan a route</span>
@@ -625,35 +637,39 @@ export function TransitMap() {
         maxHeight: 'calc(100vh - 60px)', overflowY: 'auto',
       }}>
         <div style={{
-          display: 'flex', gap: 2, padding: 3, background: '#f1f3f5', borderRadius: 10,
+          display: 'flex', gap: 2, padding: 3, background: '#f1f3f5cb', borderRadius: 10, position: 'sticky', top: 0, zIndex: 10000, backdropFilter: 'blur(10px)', 
         }}>
           <button
             onClick={() => { setShowRoutePlanner(false); setHighlightRoute(undefined) }}
             style={{
-              padding: '5px 16px', border: 'none', cursor: 'pointer', fontSize: 12,
+              padding: '5px 16px', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex',
               fontWeight: 600, fontFamily: 'system-ui, sans-serif',
-              borderRadius: 7, letterSpacing: '.02em',
+              borderRadius: 7, letterSpacing: '.02em', flexDirection: 'row', alignItems: 'center',
               background: !showRoutePlanner ? 'white' : 'transparent',
               color: !showRoutePlanner ? '#1a1a1a' : '#888',
               boxShadow: !showRoutePlanner ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
               transition: 'all .15s',
             }}
           >
-            <span style={{ marginRight: 5 }}>🏙</span> Stations
+            <span style={{ marginRight: 5, height: 24 }}>
+              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill={!showRoutePlanner ? '#1a1a1a' : '#888'}><path d="M80-80v-526q0-85 44-147.5T248-848q54-21 115-26.5t117-5.5q56 0 117 5.5T712-848q80 32 124 94.5T880-606v526H80Zm284-80h230l-60-60H424l-60 60Zm-64-280h360v-160H300v160Zm348.5 128.5Q660-323 660-340t-11.5-28.5Q637-380 620-380t-28.5 11.5Q580-357 580-340t11.5 28.5Q603-300 620-300t28.5-11.5Zm-280 0Q380-323 380-340t-11.5-28.5Q357-380 340-380t-28.5 11.5Q300-357 300-340t11.5 28.5Q323-300 340-300t28.5-11.5ZM160-160h140v-20l42-42q-44-6-73-39.5T240-340v-260q0-78 74.5-99T480-720q100 0 170 21t70 99v260q0 45-29 78.5T618-222l42 42v20h140v-446q0-60-29.5-102.5T682-774q-44-17-97.5-21.5T480-800q-51 0-104.5 4.5T278-774q-59 23-88.5 65.5T160-606v446Zm0 0h640-640Z"/></svg>
+              </span> Stations
           </button>
           <button
             onClick={() => { setShowRoutePlanner(true); setSelectedStation(null) }}
             style={{
-              padding: '5px 16px', border: 'none', cursor: 'pointer', fontSize: 12,
+              padding: '5px 16px', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex',
               fontWeight: 600, fontFamily: 'system-ui, sans-serif',
-              borderRadius: 7, letterSpacing: '.02em',
+              borderRadius: 7, letterSpacing: '.02em', flexDirection: 'row', alignItems: 'center',
               background: showRoutePlanner ? 'white' : 'transparent',
               color: showRoutePlanner ? '#1a1a1a' : '#888',
               boxShadow: showRoutePlanner ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
               transition: 'all .15s',
             }}
           >
-            <span style={{ marginRight: 5 }}>↔</span> Routes
+            <span style={{ marginRight: 5, height: 24 }}>
+              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill={showRoutePlanner ? '#1a1a1a' : '#888'}><path d="M247-167q-47-47-47-113v-327q-35-13-57.5-43.5T120-720q0-50 35-85t85-35q50 0 85 35t35 85q0 39-22.5 69.5T280-607v327q0 33 23.5 56.5T360-200q33 0 56.5-23.5T440-280v-400q0-66 47-113t113-47q66 0 113 47t47 113v327q35 13 57.5 43.5T840-240q0 50-35 85t-85 35q-50 0-85-35t-35-85q0-39 22.5-70t57.5-43v-327q0-33-23.5-56.5T600-760q-33 0-56.5 23.5T520-680v400q0 66-47 113t-113 47q-66 0-113-47Zm-7-513q17 0 28.5-11.5T280-720q0-17-11.5-28.5T240-760q-17 0-28.5 11.5T200-720q0 17 11.5 28.5T240-680Zm480 480q17 0 28.5-11.5T760-240q0-17-11.5-28.5T720-280q-17 0-28.5 11.5T680-240q0 17 11.5 28.5T720-200ZM240-720Zm480 480Z"/></svg>
+              </span> Routes
           </button>
         </div>
 
@@ -687,7 +703,7 @@ export function TransitMap() {
         </div>
       )}
 
-      <MapContainer center={KL_CENTER} zoom={12} style={{ height: '100%', width: '100%' }}>
+      <MapContainer attributionControl={false} center={KL_CENTER} zoom={12} style={{ height: '100%', width: '100%' }}>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution="&copy; OpenStreetMap contributors"
