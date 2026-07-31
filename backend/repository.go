@@ -210,8 +210,11 @@ func (r *pgxTransitRepo) GetStations(ctx context.Context) ([]Station, error) {
 // ETA
 // ---------------------------------------------------------------------------
 
-func (r *pgxTransitRepo) GetETA(ctx context.Context, stopID string, dayCol string) ([]ETA, error) {
-	q := fmt.Sprintf(`
+// ponytail: KISS-003 — extracted ETA query builder for readability.
+// CTE structure: myt = current time in seconds, base = filtered schedule rows,
+// then cross-join with generate_series to produce frequency-based departures.
+func buildETASQL(dayCol string) string {
+	return fmt.Sprintf(`
 		WITH myt AS (
 		  SELECT (EXTRACT(HOUR FROM (CURRENT_TIME + INTERVAL '8 hours')) * 3600 +
 		          EXTRACT(MINUTE FROM (CURRENT_TIME + INTERVAL '8 hours')) * 60 +
@@ -246,6 +249,10 @@ func (r *pgxTransitRepo) GetETA(ctx context.Context, stopID string, dayCol strin
 		  AND b.arr_sec + n.n * COALESCE(b.headway_secs, 86400) < b.end_sec + 3600
 		ORDER BY b.arr_sec + n.n * COALESCE(b.headway_secs, 86400)
 		LIMIT 10`, dayCol)
+}
+
+func (r *pgxTransitRepo) GetETA(ctx context.Context, stopID string, dayCol string) ([]ETA, error) {
+	q := buildETASQL(dayCol)
 
 	rows, err := r.pool.Query(ctx, q, stopID)
 	if err != nil {
