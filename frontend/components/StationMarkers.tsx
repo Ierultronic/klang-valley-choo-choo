@@ -1,19 +1,42 @@
 'use client'
 
-import { CircleMarker } from 'react-leaflet'
+import { memo, useMemo, useState, useEffect } from 'react'
+import { CircleMarker, useMap } from 'react-leaflet'
+import { LatLngBounds } from 'leaflet'
 import { Station } from '../lib/types'
 
 // ---------------------------------------------------------------------------
-// ponytail: KISS-001 — station circle markers layer extracted from Map.tsx.
+// ponytail: KISS-001 — station circle markers layer.
+// PERF: React.memo + viewport culling — only render stations in visible bounds.
+//       Big win: 1000+ DOM nodes → ~50 at typical zoom.
 // ---------------------------------------------------------------------------
 
-export function StationMarkers({ stations, onSelect }: {
+export const StationMarkers = memo(function StationMarkers({
+  stations,
+  onSelect,
+}: {
   stations: Station[]
   onSelect: (s: Station) => void
 }) {
+  const map = useMap()
+
+  // Track viewport bounds so useMemo re-runs on pan/zoom
+  const [bounds, setBounds] = useState<LatLngBounds>(map.getBounds())
+
+  useEffect(() => {
+    const update = () => setBounds(map.getBounds())
+    map.on('moveend zoomend', update)
+    return () => { map.off('moveend zoomend', update) }
+  }, [map])
+
+  // Filter stations to visible viewport only
+  const visible = useMemo(() => {
+    return stations.filter(s => bounds.contains([s.stop_lat, s.stop_lon]))
+  }, [stations, bounds])
+
   return (
     <>
-      {stations.map(s => (
+      {visible.map(s => (
         <CircleMarker
           key={s.stop_id}
           center={[s.stop_lat, s.stop_lon]}
@@ -29,4 +52,4 @@ export function StationMarkers({ stations, onSelect }: {
       ))}
     </>
   )
-}
+})
