@@ -1,3 +1,6 @@
+// DISABLED — backend scraper not live (CODE-AUDIT.md YAGNI-005).
+// Keep file for future re-enablement; remove from page.tsx so polling stops.
+/* DISABLED
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -62,3 +65,4 @@ export function ServiceBar() {
     </div>
   )
 }
+*/

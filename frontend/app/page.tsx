@@ -1,7 +1,6 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { ServiceBar } from '../components/ServiceBar'
 
 const TransitMap = dynamic(() => import('../components/Map').then(m => ({ default: m.TransitMap })), {
   ssr: false,
@@ -11,7 +10,6 @@ export default function Home() {
   return (
     <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
       <TransitMap />
-      <ServiceBar />
       <footer style={{
         display: "flex", position: "absolute", bottom: 0, width: "100%", padding: 4, zIndex: 1000,
         justifyContent: "space-between", alignItems: "center"
