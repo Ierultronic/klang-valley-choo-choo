@@ -446,19 +446,40 @@ func routeStopIdx(g *planGraph, routeID, fromID, toID string) (int, int) {
 
 // graphRouteStops returns the stop names between fromID and toID on a route
 // using the cached graph's ordered stop list (no DB round-trip).
+// Mirrors GetRouteStops: the representative trip's stop_times rows repeat
+// each stop many times, so dedupe by name preserving order FIRST, then slice
+// the board→alight segment (direction-agnostic).
 // Returns nil when both stops aren't on the representative trip, so the
 // caller can fall back to a DB query for direction variants.
 func graphRouteStops(g *planGraph, routeID, fromID, toID string) []string {
 	stops := g.stopsByRoute[routeID]
-	fromIdx, toIdx := routeStopIdx(g, routeID, fromID, toID)
-	if fromIdx < 0 {
+	fromName, toName := g.stopLoc[fromID].Name, g.stopLoc[toID].Name
+
+	names := make([]string, 0, len(stops))
+	seen := make(map[string]bool, len(stops))
+	for _, s := range stops {
+		if !seen[s.Name] {
+			seen[s.Name] = true
+			names = append(names, s.Name)
+		}
+	}
+
+	fromIdx, toIdx := -1, -1
+	for i, name := range names {
+		if name == fromName && fromIdx == -1 {
+			fromIdx = i
+		}
+		if name == toName && toIdx == -1 {
+			toIdx = i
+		}
+	}
+	if fromIdx == -1 || toIdx == -1 {
 		return nil
 	}
-	names := make([]string, 0, toIdx-fromIdx+1)
-	for i := fromIdx; i <= toIdx; i++ {
-		names = append(names, stops[i].Name)
+	if fromIdx > toIdx {
+		fromIdx, toIdx = toIdx, fromIdx
 	}
-	return names
+	return names[fromIdx : toIdx+1]
 }
 
 // orderedRouteStops returns the stop names between fromName and toName on a
