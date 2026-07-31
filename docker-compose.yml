@@ -33,10 +33,12 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://10.126.97.125:8080
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080
+      NEXT_PUBLIC_API_URL: http://10.126.97.125:8080
     depends_on:
       - backend
     restart: unless-stopped
