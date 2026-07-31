@@ -26,7 +26,7 @@ type TransitRepo interface {
 	// Stops & Stations
 	GetStops(ctx context.Context) ([]Stop, error)
 	GetStopByID(ctx context.Context, stopID string) (Stop, error)
-	GetStations(ctx context.Context) ([]Station, error)
+	GetStations(ctx context.Context, railOnly bool) ([]Station, error)
 
 	// ETA
 	GetETA(ctx context.Context, stopID string, dayCol string) ([]ETA, error)
@@ -99,11 +99,17 @@ func (r *pgxTransitRepo) GetRoutes(ctx context.Context) ([]Route, error) {
 }
 
 func (r *pgxTransitRepo) GetShapes(ctx context.Context) ([]ShapeResponse, error) {
+	// Rail-only scope: bus routes (route_type 3) are never rendered as
+	// polylines anymore (frontend filtered them since 0d923d3), so sending
+	// them wasted ~90% of the payload. Shapes without any trip are dropped
+	// too (none exist; verified against live DB).
 	rows, err := r.pool.Query(ctx,
 		`SELECT s.shape_id, s.shape_pt_lat, s.shape_pt_lon, s.shape_pt_sequence,
 		        COALESCE(t.route_id, '')
 		 FROM shapes s
 		 LEFT JOIN trips t ON s.shape_id = t.shape_id
+		 LEFT JOIN routes rt ON t.route_id = rt.route_id
+		 WHERE rt.route_type <> 3
 		 ORDER BY s.shape_id, s.shape_pt_sequence`)
 	if err != nil {
 		return nil, err
@@ -192,7 +198,14 @@ func (r *pgxTransitRepo) GetStopByID(ctx context.Context, stopID string) (Stop, 
 	return s, err
 }
 
-func (r *pgxTransitRepo) GetStations(ctx context.Context) ([]Station, error) {
+func (r *pgxTransitRepo) GetStations(ctx context.Context, railOnly bool) ([]Station, error) {
+	// railOnly=true mirrors the frontend's rail-stop predicate (station has
+	// ≥1 non-bus route): bus-only stops drop out AND the route_ids/names
+	// arrays carry rail routes only. Default (false) keeps old behavior.
+	railFilter := ""
+	if railOnly {
+		railFilter = " AND r.route_type <> 3"
+	}
 	rows, err := r.pool.Query(ctx,
 		`SELECT s.stop_id, s.stop_name, s.stop_lat, s.stop_lon,
 		        COALESCE(array_agg(DISTINCT r.route_id) FILTER (WHERE r.route_id IS NOT NULL), '{}') AS route_ids,
@@ -201,7 +214,7 @@ func (r *pgxTransitRepo) GetStations(ctx context.Context) ([]Station, error) {
 		 FROM stops s
 		 JOIN stop_times st ON s.stop_id = st.stop_id
 		 JOIN trips t ON st.trip_id = t.trip_id
-		 JOIN routes r ON t.route_id = r.route_id
+		 JOIN routes r ON t.route_id = r.route_id` + railFilter + `
 		 GROUP BY s.stop_id, s.stop_name, s.stop_lat, s.stop_lon
 		 ORDER BY s.stop_name`)
 	if err != nil {

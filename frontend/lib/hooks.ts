@@ -16,7 +16,7 @@ export function useStationData(): Station[] {
 
   useEffect(() => {
     mounted.current = true
-    fetch(`${API_URL}/api/stations`)
+    fetch(`${API_URL}/api/stations?rail=1`)
       .then(r => r.json())
       .then(data => { if (mounted.current) setStations(data) })
       .catch(() => {})

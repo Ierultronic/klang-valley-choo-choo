@@ -22,7 +22,10 @@ func handleStops(repo TransitRepo) http.HandlerFunc {
 
 func handleStations(repo TransitRepo) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		stations, err := repo.GetStations(r.Context())
+		// ?rail=1 → rail-only stations (same predicate the frontend used to
+		// apply client-side). Default stays unchanged for other consumers.
+		railOnly := r.URL.Query().Get("rail") == "1"
+		stations, err := repo.GetStations(r.Context(), railOnly)
 		if err != nil {
 			jsonError(w, err.Error(), 500)
 			return
