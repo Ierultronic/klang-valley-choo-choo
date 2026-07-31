@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import { Station, RoutePlanRoute } from '../lib/types'
 import { API_URL } from '../lib/api'
@@ -18,9 +18,24 @@ import { routeHex } from '../lib/colors'
 //       Components are React.memo'd so re-renders only affect changed items.
 //       StationMarkers uses viewport culling (only visible stations rendered).
 //       ShapeLines uses zoom-based point simplification.
+//
+// FEATURE: Bus vehicle toggle — filter bus vehicles (route_type=3) on/off.
+//          Preference persisted in localStorage.
 // ---------------------------------------------------------------------------
 
 const KL_CENTER: [number, number] = [3.1390, 101.6869]
+
+// ─── localStorage helpers ────────────────────────────────────────────────
+
+function loadShowBuses(): boolean {
+  if (typeof window === 'undefined') return true
+  const v = localStorage.getItem('kv_show_buses')
+  return v === null ? true : v === 'true'
+}
+
+function saveShowBuses(v: boolean) {
+  localStorage.setItem('kv_show_buses', String(v))
+}
 
 function FlyTo({ pos }: { pos: [number, number] | null }) {
   const map = useMap()
@@ -30,12 +45,67 @@ function FlyTo({ pos }: { pos: [number, number] | null }) {
   return null
 }
 
+// ─── Bus toggle button ────────────────────────────────────────────────────
+
+function BusToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={on ? 'Hide buses' : 'Show buses'}
+      style={{
+        position: 'absolute', top: 12, left: 12, zIndex: 1000,
+        width: 36, height: 36, borderRadius: 10,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        border: '1.5px solid var(--kv-border)',
+        cursor: 'pointer',
+        background: 'var(--kv-surface)',
+        boxShadow: 'var(--shadow-sm)',
+        opacity: on ? 1 : 0.55,
+        transition: 'opacity .2s, transform .15s',
+        minWidth: 36, minHeight: 36,
+      }}
+    >
+      {/* bus icon */}
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960"
+        fill={on ? '#2563eb' : 'var(--kv-muted)'} style={{ transition: 'fill .2s' }}>
+        <path d="M240-120q-17 0-28.5-11.5T200-160v-82q-18-20-29-44.5T160-340v-380q0-83 69.5-111.5T480-860q166 0 243 26.5T800-720v380q0 29-11 53.5T760-242v82q0 17-11.5 28.5T720-120h-40q-17 0-28.5-11.5T640-160v-40H320v40q0 17-11.5 28.5T280-120h-40Zm0-360h480v-160H240v160Zm100 200q17 0 28.5-11.5T380-320q0-17-11.5-28.5T340-360q-17 0-28.5 11.5T300-320q0 17 11.5 28.5T340-280Zm280 0q17 0 28.5-11.5T660-320q0-17-11.5-28.5T620-360q-17 0-28.5 11.5T580-320q0 17 11.5 28.5T620-280ZM240-240h480v-120H240v120Zm0 0v-120 120Z"/>
+      </svg>
+    </button>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────
+
 export function TransitMap() {
   // Data from custom hooks — each manages its own lifecycle
   const vehicles = useVehicleData()
   const shapes = useShapeData()
   const routes = useRouteData()
   const stations = useStationData()
+
+  // ─── Bus toggle ───────────────────────────────────────────────────────
+  const [showBuses, setShowBuses] = useState(loadShowBuses)
+
+  const toggleBuses = useCallback(() => {
+    setShowBuses(prev => {
+      const next = !prev
+      saveShowBuses(next)
+      return next
+    })
+  }, [])
+
+  // route_id → route_type lookup (3 = bus)
+  const routeTypeMap = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const r of routes) m.set(r.route_id, r.route_type)
+    return m
+  }, [routes])
+
+  // Filter vehicles based on bus toggle
+  const visibleVehicles = useMemo(() => {
+    if (showBuses) return vehicles
+    return vehicles.filter(v => routeTypeMap.get(v.route_id) !== 3)
+  }, [vehicles, showBuses, routeTypeMap])
 
   // Local UI state (not fetched)
   const [selectedStation, setSelectedStation] = useState<Station | null>(null)
@@ -80,10 +150,13 @@ export function TransitMap() {
 
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+      {/* Bus toggle — floating top-left */}
+      <BusToggle on={showBuses} onToggle={toggleBuses} />
+
       {!selectedStation && <div style={{
         position: 'absolute', top: 12, right: 12,
         zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
-        width: 320, maxWidth: 'calc(100vw - 40px)',
+        width: 320, maxWidth: 'calc(100vw - 60px)',
         maxHeight: 'calc(100vh - 60px)', overflowY: 'auto',
       }}>
         <div style={{
@@ -235,7 +308,7 @@ export function TransitMap() {
         />
         <ShapeLines shapes={shapes} routes={routes} highlight={highlightRoute} />
         <StationMarkers stations={stations} onSelect={handleStationClick} />
-        {vehicles.map(v => <VehicleMarker key={v.vehicle_id} v={v} />)}
+        {visibleVehicles.map(v => <VehicleMarker key={v.vehicle_id} v={v} />)}
         <UserLocation />
         <FlyTo pos={flyPos} />
       </MapContainer>
