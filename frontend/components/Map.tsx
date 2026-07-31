@@ -149,6 +149,12 @@ export function TransitMap() {
     return m
   }, [routes])
 
+  // Route ids of all BUS routes (route_type 3) — used to hide bus-stop dots
+  const busRouteIds = useMemo(
+    () => new Set(routes.filter(r => r.route_type === 3).map(r => r.route_id)),
+    [routes]
+  )
+
   const visibleVehicles = useMemo(() => {
     if (showBuses) return vehicles
     return vehicles.filter(v => routeTypeMap.get(v.route_id) !== 3)
@@ -512,7 +518,7 @@ export function TransitMap() {
           attribution="&copy; OpenStreetMap contributors"
         />
         <ShapeLines shapes={shapes} routes={routes} highlight={highlightRoute} />
-        <StationMarkers stations={stations} onSelect={handleStationClick} />
+        <StationMarkers stations={stations} busRouteIds={busRouteIds} onSelect={handleStationClick} />
         {visibleVehicles.map(v => <VehicleMarker key={v.vehicle_id} v={v} />)}
         <UserLocation />
         <FlyTo pos={flyPos} />

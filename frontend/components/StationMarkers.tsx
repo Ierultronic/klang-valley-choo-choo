@@ -13,9 +13,11 @@ import { Station } from '../lib/types'
 
 export const StationMarkers = memo(function StationMarkers({
   stations,
+  busRouteIds,
   onSelect,
 }: {
   stations: Station[]
+  busRouteIds: Set<string>
   onSelect: (s: Station) => void
 }) {
   const map = useMap()
@@ -29,10 +31,15 @@ export const StationMarkers = memo(function StationMarkers({
     return () => { map.off('moveend zoomend', update) }
   }, [map])
 
-  // Filter stations to visible viewport only
+  // Filter stations to visible viewport only; hide pure bus stops
+  // (all of their route_ids are bus routes, route_type 3). Stations with
+  // empty route_ids stay visible — don't hide what we don't know.
   const visible = useMemo(() => {
-    return stations.filter(s => bounds.contains([s.stop_lat, s.stop_lon]))
-  }, [stations, bounds])
+    return stations.filter(s =>
+      bounds.contains([s.stop_lat, s.stop_lon]) &&
+      (s.route_ids.length === 0 || s.route_ids.some(id => !busRouteIds.has(id)))
+    )
+  }, [stations, bounds, busRouteIds])
 
   return (
     <>
