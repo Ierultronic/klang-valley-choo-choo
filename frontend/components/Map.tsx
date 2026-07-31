@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { Fragment, useEffect, useState, useCallback, useMemo } from 'react'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import { Station, RoutePlanRoute } from '../lib/types'
 import { API_URL } from '../lib/api'
@@ -60,14 +60,6 @@ function addRecentSearch(from: Station, to: Station) {
 }
 
 // ─── walking estimate utils ──────────────────────────────────────────────
-
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371
-  const dLat = (lat2 - lat1) * Math.PI / 180
-  const dLon = (lon2 - lon1) * Math.PI / 180
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
 
 function walkEstimate(minutes: number): string {
   if (minutes < 1) return '<1 min walk'
@@ -361,16 +353,8 @@ export function TransitMap() {
                 {routeResults.map((r, i) => {
                   const expanded = routeExpandedIdx === i
                   const leg0Color = routeHex(r.legs[0]?.route_color, '#ccc')
-                  const transferColor = r.legs.length > 1 ? routeHex(r.legs[1]?.route_color, '#999') : undefined
                   const totalStops = r.legs.reduce((s, l) => s + (l.stops?.length || 0), 0)
-
-                  const walkDist = r.legs.length > 1
-                    ? haversineKm(
-                        r.legs[0].to_stop.stop_lat, r.legs[0].to_stop.stop_lon,
-                        r.legs[1].from_stop.stop_lat, r.legs[1].from_stop.stop_lon
-                      )
-                    : 0
-                  const walkMin = Math.ceil(walkDist * 12)
+                  const totalWalkKm = (r.transfers || []).reduce((s, t) => s + (t.distance_m || 0), 0) / 1000
 
                   return (
                   <div key={i} style={{ marginBottom: 6 }}>
@@ -387,39 +371,40 @@ export function TransitMap() {
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)' }}>
                         {/* Colored dot(s) for each leg */}
                         <div style={{ display: 'flex', gap: 2, marginTop: 4, flexShrink: 0 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: leg0Color, border: `2px solid ${leg0Color}44` }} />
-                          {transferColor && (
-                            <>
-                              <div style={{ width: 6, height: 2, background: 'var(--kv-border)', marginTop: 4, borderRadius: 1 }} />
-                              <div style={{ width: 10, height: 10, borderRadius: '50%', background: transferColor, border: `2px solid ${transferColor}44` }} />
-                            </>
-                          )}
+                          {r.legs.map((leg, li) => {
+                            const c = routeHex(leg.route_color, '#ccc')
+                            return (
+                              <Fragment key={li}>
+                                {li > 0 && <div style={{ width: 6, height: 2, background: 'var(--kv-border)', marginTop: 4, borderRadius: 1 }} />}
+                                <div style={{ width: 10, height: 10, borderRadius: '50%', background: c, border: `2px solid ${c}44` }} />
+                              </Fragment>
+                            )
+                          })}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--kv-ink)', lineHeight: 1.4 }}>
-                            {r.legs.length === 1
-                              ? r.legs[0].route_name
-                              : `${r.legs[0].route_name}  →  ${r.legs[1].route_name}`}
+                            {r.legs.map(l => l.route_name).join('  →  ')}
                           </div>
                           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginTop: 3, lineHeight: 1.3 }}>
                             {r.legs[0].from_stop.stop_name} → {r.legs[r.legs.length - 1].to_stop.stop_name}
                             {totalStops > 0 && <span> · {totalStops} stop{totalStops !== 1 ? 's' : ''}</span>}
-                            {r.legs.length > 1 && r.transfer_at && (
-                              <span> · transfer at {r.transfer_at.stop_name}</span>
+                            {r.legs.length > 1 && r.transfers && r.transfers.length > 0 && (
+                              <span> · transfer{r.transfers.length > 1 ? 's' : ''} at {r.transfers.map(t => t.from_stop.stop_name).join(' & ')}</span>
+                            )}
+                            {totalWalkKm > 0.05 && (
+                              <span> · {walkEstimate(Math.ceil(totalWalkKm * 12))}</span>
                             )}
                           </div>
                           {/* Journey summary line */}
                           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginTop: 3, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                            <span style={{ color: leg0Color, fontWeight: 600 }}>{r.legs[0].route_name}</span>
-                            <span>→</span>
-                            <span style={{ fontWeight: 500 }}>{r.legs[0].to_stop.stop_name}</span>
-                            {r.legs.length > 1 && (
-                              <>
-                                <span style={{ color: transferColor, fontWeight: 600 }}>{r.legs[1].route_name}</span>
+                            {r.legs.map((leg, li) => (
+                              <Fragment key={li}>
+                                {li > 0 && <span>→</span>}
+                                <span style={{ color: routeHex(leg.route_color, '#999'), fontWeight: 600 }}>{leg.route_name}</span>
                                 <span>→</span>
-                                <span style={{ fontWeight: 500 }}>{r.legs[1].to_stop.stop_name}</span>
-                              </>
-                            )}
+                                <span style={{ fontWeight: 500 }}>{leg.to_stop.stop_name}</span>
+                              </Fragment>
+                            ))}
                           </div>
                         </div>
                         <span style={{ color: 'var(--kv-muted)', fontSize: 'var(--text-xs)', transition: 'transform .15s', transform: expanded ? 'rotate(180deg)' : 'none', flexShrink: 0 }}>▼</span>
@@ -431,6 +416,8 @@ export function TransitMap() {
                       <div style={{ marginTop: 4, padding: 'var(--space-3)', background: 'var(--kv-bg)', borderRadius: 8, border: '1px solid var(--kv-border)' }}>
                         {r.legs.map((leg, li) => {
                           const legColor = routeHex(leg.route_color)
+                          const tr = li > 0 ? r.transfers?.[li - 1] : undefined
+                          const walkKm = tr ? (tr.distance_m || 0) / 1000 : 0
                           return (
                           <div key={li}>
                             {li > 0 && (
@@ -441,10 +428,10 @@ export function TransitMap() {
                               }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--text-xs)' }}>
                                   <span style={{ color: 'var(--kv-accent)', fontWeight: 600 }}>🔄 Transfer</span>
-                                  {r.transfer_at && <span style={{ color: 'var(--kv-ink)', fontWeight: 500 }}>at {r.transfer_at.stop_name}</span>}
-                                  {walkDist > 0.05 && (
+                                  {tr && <span style={{ color: 'var(--kv-ink)', fontWeight: 500 }}>at {tr.from_stop.stop_name}</span>}
+                                  {walkKm > 0.05 && (
                                     <span style={{ color: 'var(--kv-muted)', fontSize: 'var(--text-xs)' }}>
-                                      · {walkEstimate(walkMin)}
+                                      · {walkEstimate(Math.ceil(walkKm * 12))}
                                     </span>
                                   )}
                                 </div>

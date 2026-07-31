@@ -31,10 +31,15 @@ export type RouteLeg = {
   from_stop: Station; to_stop: Station; stops?: string[]
 }
 
+export type TransferPoint = {
+  from_stop: Station; to_stop: Station; distance_m: number
+}
+
 export type RoutePlanRoute = {
   route_id?: string; route_name?: string; route_color?: string
   direction_id?: number; stops_between?: number; duration_sec?: number; shape_id?: string
   legs: RouteLeg[]
+  transfers?: TransferPoint[]
   transfer_at?: Station
 }
 
