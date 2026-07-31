@@ -143,11 +143,16 @@ export function TransitMap() {
     })
   }, [])
 
-  const routeTypeMap = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const r of routes) m.set(r.route_id, r.route_type)
-    return m
-  }, [routes])
+  // Route ids of all RAIL routes (route_type 0/1/2, i.e. NOT 3). When the bus
+  // toggle is OFF we keep only vehicles on KNOWN rail routes. Allow-list
+  // semantics are required: vehicles whose route_id is missing from the GTFS
+  // routes table (e.g. T-series feeder buses) are buses too and must hide —
+  // the old `routeTypeMap.get(id) !== 3` filter leaked them because
+  // `undefined !== 3` is true.
+  const railRouteIds = useMemo(
+    () => new Set(routes.filter(r => r.route_type !== 3).map(r => r.route_id)),
+    [routes]
+  )
 
   // Route ids of all BUS routes (route_type 3) — used to hide bus-stop dots
   const busRouteIds = useMemo(
@@ -157,8 +162,8 @@ export function TransitMap() {
 
   const visibleVehicles = useMemo(() => {
     if (showBuses) return vehicles
-    return vehicles.filter(v => routeTypeMap.get(v.route_id) !== 3)
-  }, [vehicles, showBuses, routeTypeMap])
+    return vehicles.filter(v => railRouteIds.has(v.route_id))
+  }, [vehicles, showBuses, railRouteIds])
 
   // ─── Local UI state ───────────────────────────────────────────────────
   const [selectedStation, setSelectedStation] = useState<Station | null>(null)
