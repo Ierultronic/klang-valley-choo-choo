@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -448,7 +449,10 @@ func routeStopIdx(g *planGraph, routeID, fromID, toID string) (int, int) {
 // using the cached graph's ordered stop list (no DB round-trip).
 // Mirrors GetRouteStops: the representative trip's stop_times rows repeat
 // each stop many times, so dedupe by name preserving order FIRST, then slice
-// the board→alight segment (direction-agnostic).
+// the board→alight segment and normalize it to TRAVEL direction: the
+// representative trip may run the OPPOSITE way, so the array is reversed when
+// needed — the returned slice always starts at the board stop (fromID) and
+// ends at the alight stop (toID).
 // Returns nil when both stops aren't on the representative trip, so the
 // caller can fall back to a DB query for direction variants.
 func graphRouteStops(g *planGraph, routeID, fromID, toID string) []string {
@@ -473,13 +477,21 @@ func graphRouteStops(g *planGraph, routeID, fromID, toID string) []string {
 			toIdx = i
 		}
 	}
-	if fromIdx == -1 || toIdx == -1 {
+	if fromIdx == -1 || toIdx == -1 || fromIdx == toIdx {
 		return nil
 	}
+	// Slice the whole board→alight segment (min/max covers both directions),
+	// then normalize: when the representative trip order is opposite to the
+	// leg's travel direction, segment[0] is the alight stop — reverse it so
+	// the array reads board → … → alight for the frontend labels.
 	if fromIdx > toIdx {
 		fromIdx, toIdx = toIdx, fromIdx
 	}
-	return names[fromIdx : toIdx+1]
+	segment := names[fromIdx : toIdx+1]
+	if segment[0] != fromName {
+		slices.Reverse(segment)
+	}
+	return segment
 }
 
 // orderedRouteStops returns the stop names between fromName and toName on a
