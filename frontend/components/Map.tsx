@@ -1,134 +1,21 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap } from 'react-leaflet'
-import L from 'leaflet'
+import { useEffect, useState, useCallback } from 'react'
+import { MapContainer, TileLayer, useMap } from 'react-leaflet'
+import { Vehicle, Shape, Route, Station, RoutePlanRoute } from '../lib/types'
+import { API_URL } from '../lib/api'
+import { VehicleMarker, UserLocation } from './VehicleMarkers'
+import { ShapeLines } from './ShapeLines'
+import { StationMarkers } from './StationMarkers'
+import { StationSearch } from './StationSearch'
+import { StationPopup } from './StationPopup'
 
-const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/+$/, '')
+// ---------------------------------------------------------------------------
+// ponytail: KISS-001 — Map.tsx is now the Leaflet orchestrator only.
+// All sub-components (vehicles, shapes, stations, search, popup) are in separate files.
+// ---------------------------------------------------------------------------
+
 const KL_CENTER: [number, number] = [3.1390, 101.6869]
-
-type Vehicle = {
-  vehicle_id: string; lat: number; lon: number; bearing: number
-  speed: number; delay_seconds: number; route_id: string; fetched_at: string
-}
-
-type Shape = {
-  shape_id: string; route_id: string; points: { lat: number; lon: number }[]
-}
-
-type Route = {
-  route_id: string; route_short_name: string; route_long_name: string
-  route_color: string; route_type: number
-}
-
-type Station = {
-  stop_id: string; stop_name: string; stop_lat: number; stop_lon: number
-  route_ids: string[]; route_names: string[]; route_color: string
-}
-
-type ETA = {
-  arrival_time: string; route_id: string; route_name: string
-  route_color: string; trip_id: string; direction_id: number; headsign: string
-}
-
-type RouteLeg = {
-  route_id: string; route_name: string; route_color: string
-  direction_id: number; stops_between: number; duration_sec: number; shape_id: string
-  from_stop: Station; to_stop: Station; stops?: string[]
-}
-
-type RoutePlanRoute = {
-  route_id?: string; route_name?: string; route_color?: string
-  direction_id?: number; stops_between?: number; duration_sec?: number; shape_id?: string
-  legs: RouteLeg[]
-  transfer_at?: Station
-}
-
-type RoutePlanResult = {
-  routes: RoutePlanRoute[]; from_stop: Station; to_stop: Station
-}
-
-function delayColor(sec: number): string {
-  if (sec < 120) return '#22c55e'
-  if (sec < 300) return '#eab308'
-  return '#ef4444'
-}
-
-function createIcon(color: string) {
-  return L.divIcon({
-    className: '',
-    html: `<div style="width:12px;height:12px;background:${color};border-radius:50%;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div>`,
-    iconSize: [12, 12],
-    iconAnchor: [6, 6],
-  })
-}
-
-const userIcon = L.divIcon({
-  className: '',
-  html: `<div style="width:20px;height:20px;background:#2563eb;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;background:#fff;border-radius:50%"></div></div>`,
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
-})
-
-function VehicleMarker({ v }: { v: Vehicle }) {
-  const color = delayColor(v.delay_seconds)
-  return (
-    <Marker position={[v.lat, v.lon]} icon={createIcon(color)}>
-      <Popup>
-        <b>{v.vehicle_id}</b><br />
-        Route: {v.route_id || 'unknown'}<br />
-        Delay: {v.delay_seconds > 0 ? `${Math.round(v.delay_seconds / 60)} min` : 'on time'}<br />
-        Speed: {(v.speed || 0).toFixed(1)} km/h
-      </Popup>
-    </Marker>
-  )
-}
-
-function ShapeLines({ shapes, routes, highlight }: { shapes: Shape[]; routes: Route[]; highlight?: string }) {
-  const routeMap = new Map(routes.map(r => [r.route_id, r]))
-  return (
-    <>
-      {shapes.map(s => {
-        const isHL = highlight && s.route_id === highlight
-        const color = routeMap.get(s.route_id)?.route_color
-          ? `#${routeMap.get(s.route_id)!.route_color}`
-          : '#666'
-        return (
-          <Polyline
-            key={s.shape_id}
-            positions={s.points.map(p => [p.lat, p.lon])}
-            pathOptions={{ color, weight: isHL ? 6 : 4, opacity: isHL ? 1 : 0.7 }}
-          />
-        )
-      })}
-    </>
-  )
-}
-
-function UserLocation() {
-  const map = useMap()
-  const [pos, setPos] = useState<[number, number] | null>(null)
-
-  useEffect(() => {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      p => {
-        const c: [number, number] = [p.coords.latitude, p.coords.longitude]
-        setPos(c)
-        map.flyTo(c, 14, { duration: 2 })
-      },
-      () => {},
-      { enableHighAccuracy: false, timeout: 8000 }
-    )
-  }, [map])
-
-  if (!pos) return null
-  return (
-    <Marker position={pos} icon={userIcon}>
-      <Popup>You are here</Popup>
-    </Marker>
-  )
-}
 
 function FlyTo({ pos }: { pos: [number, number] | null }) {
   const map = useMap()
@@ -137,252 +24,6 @@ function FlyTo({ pos }: { pos: [number, number] | null }) {
   }, [map, pos])
   return null
 }
-
-function StationMarkers({ stations, onSelect }: { stations: Station[]; onSelect: (s: Station) => void }) {
-  return (
-    <>
-      {stations.map(s => (
-        <CircleMarker
-          key={s.stop_id}
-          center={[s.stop_lat, s.stop_lon]}
-          radius={6}
-          pathOptions={{
-            color: s.route_color ? `#${s.route_color}` : '#666',
-            fillColor: s.route_color ? `#${s.route_color}` : '#666',
-            fillOpacity: 0.8,
-            weight: 2,
-          }}
-          eventHandlers={{ click: () => onSelect(s) }}
-        />
-      ))}
-    </>
-  )
-}
-
-function fmtTime(t: string): string {
-  const [h, m] = t.split(':').map(Number)
-  const ap = h >= 12 ? 'PM' : 'AM'
-  const h12 = h % 12 || 12
-  return `${h12}:${String(m).padStart(2, '0')} ${ap}`
-}
-
-function minsUntil(arrival: string): string {
-  const [h, m] = arrival.split(':').map(Number)
-  const n = new Date()
-  const myt = new Date(n.getTime() + n.getTimezoneOffset() * 60000 + 28800000)
-  const d = h * 60 + m - (myt.getHours() * 60 + myt.getMinutes())
-  if (d <= 0) return 'now'
-  if (d < 60) return `${d} min`
-  return `${Math.floor(d / 60)}h ${d % 60}m`
-}
-
-function StationPanel({ station, onClose }: { station: Station; onClose: () => void }) {
-  const [etas, setEtas] = useState<ETA[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    fetch(`${API}/api/stations/${station.stop_id}/eta`)
-      .then(r => r.json())
-      .then(data => { setEtas(data); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [station.stop_id])
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
-
-  const dirEtas = (dir: number) => etas.filter(e => e.direction_id === dir).slice(0, 3)
-
-  return (
-    <>
-      <div
-        onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,.3)',
-        }}
-      />
-      <div style={{
-        position: 'fixed', top: 10, right: 10, zIndex: 1000,
-        background: 'rgba(255, 255, 255, 0.8)', borderRadius: 10, padding: 16, width: 300,
-        boxShadow: '0 4px 16px rgba(0,0,0,.2)', fontFamily: 'system-ui, sans-serif',
-        maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{station.stop_name}</div>
-            <div style={{ fontSize: 12, color: '#666' }}>
-              {station.route_names.slice(0, 3).join(' / ')}{station.route_names.length > 3 ? ' +more' : ''}
-            </div>
-          </div>
-          <button onClick={onClose} style={{
-            background: 'none', border: 'none', fontSize: 20, cursor: 'pointer',
-            color: '#999', padding: '0 4px', lineHeight: 1,
-          }}>×</button>
-        </div>
-
-        {loading ? (
-          <div style={{ color: '#999', padding: '20px 0', textAlign: 'center', fontSize: 13 }}>Loading schedule...</div>
-        ) : etas.length === 0 ? (
-          <div style={{ color: '#999', padding: '20px 0', textAlign: 'center', fontSize: 13 }}>No upcoming arrivals</div>
-        ) : (
-          [0, 1].map(dir => {
-            const items = dirEtas(dir)
-            if (!items.length) return null
-            return (
-              <div key={dir} style={{ marginTop: dir === 1 ? 12 : 0 }}>
-                <div style={{
-                  fontWeight: 600, fontSize: 13, color: '#555', marginBottom: 6,
-                  paddingBottom: 4, borderBottom: '1px solid #eee',
-                }}>
-                  {items[0]?.headsign || (dir === 0 ? 'Direction A' : 'Direction B')}
-                </div>
-                {items.map((e, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0',
-                  }}>
-                    <span style={{
-                      width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                      background: e.route_color ? `#${e.route_color}` : '#666',
-                    }} />
-                    <span style={{ flex: 1, fontSize: 13, color: '#333' }}>{e.route_name}</span>
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>{fmtTime(e.arrival_time)} <span style={{ fontWeight: 400, fontSize: 11, color: '#888' }}>({minsUntil(e.arrival_time)})</span></span>
-                  </div>
-                ))}
-              </div>
-            )
-          })
-        )}
-      </div>
-    </>
-  )
-}
-
-function StationSearch({ stations, onSelect, placeholder }: { stations: Station[]; onSelect: (s: Station) => void; placeholder?: string }) {
-  const [query, setQuery] = useState('')
-  const [focused, setFocused] = useState(false)
-  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null)
-  const inputRef = useRef<HTMLDivElement>(null)
-  const dropRef = useRef<HTMLDivElement>(null)
-
-  const filtered = query.trim()
-    ? stations.filter(s => s.stop_name.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
-    : []
-
-  useLayoutEffect(() => {
-    if (!focused || !inputRef.current) return
-    inputRef.current.scrollIntoView({ block: 'nearest' })
-    const r = inputRef.current.getBoundingClientRect()
-    setDropPos({ top: r.bottom + 6, left: r.left, width: r.width })
-  }, [focused, query])
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (inputRef.current && !inputRef.current.contains(e.target as Node) &&
-          dropRef.current && !dropRef.current.contains(e.target as Node)) setFocused(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  return (
-    <>
-      <div ref={inputRef} style={{
-        position: 'relative', flex: 1,
-      }}>
-        <div style={{ position: 'relative' }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: focused ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.7)', border: focused ? '1.5px solid #2563eb' : '1.5px solid transparent',
-            borderRadius: 10, padding: '0 12px', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-            boxShadow: focused
-              ? '0 4px 20px rgba(37,99,235,.15), 0 1px 3px rgba(0,0,0,.08)'
-              : '0 2px 8px rgba(0,0,0,.08)',
-            transition: 'box-shadow .15s, border .15s',
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={focused ? '#2563eb' : '#999'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              placeholder={placeholder || 'Search stations...'}
-              value={query}
-              onChange={e => { setQuery(e.target.value); setFocused(true) }}
-              onFocus={() => setFocused(true)}
-              style={{
-                flex: 1, border: 'none', outline: 'none', fontSize: 14, padding: '10px 0',
-                fontFamily: 'system-ui, sans-serif', color: '#1a1a1a',
-                background: 'transparent',
-              }}
-            />
-            {query && (
-              <button
-                onClick={() => setQuery('')}
-                style={{
-                  background: '#e5e7eb', border: 'none', borderRadius: '50%', cursor: 'pointer',
-                  width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: 0, flexShrink: 0, color: '#666', fontSize: 12, lineHeight: 1,
-                }}
-              >✕</button>
-            )}
-          </div>
-        </div>
-
-        {dropPos && focused && query.length > 0 && filtered.length > 0 && (
-          <div ref={dropRef} style={{
-            position: 'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999,
-            background: 'rgba(255, 255, 255, 0.8)', borderRadius: 10,
-            boxShadow: '0 8px 30px rgba(0,0,0,.12)',
-            border: '1px solid #f0f0f0', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-          }}>
-            <div style={{
-              maskImage: "linear-gradient(to bottom, transparent 0px, black 30px, black calc(100% - 20px), transparent 100%)",
-              WebkitMaskImage: "linear-gradient(to bottom, transparent 0px, black 30px, black calc(100% - 30px), transparent 100%)",
-              scrollbarWidth: 'none', overflow: 'auto', height: 260, paddingBottom: 5, paddingTop: 5,
-              background: 'transparent',
-            }}>
-              {filtered.map(s => {
-                const color = s.route_color ? `#${s.route_color}` : '#999'
-                return (
-                  <button
-                    key={s.stop_id}
-                    onClick={() => { onSelect(s); setQuery(s.stop_name); setFocused(false) }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                      padding: '10px 14px', border: 'none', borderBottom: '1px solid #f5f5f5',
-                      textAlign: 'left', cursor: 'pointer', fontSize: 13, background: 'white',
-                      fontFamily: 'system-ui, sans-serif', transition: 'background .1s',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f8f9ff')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'white')}
-                  >
-                    <div style={{
-                      width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: color,
-                      border: `2px solid ${color}33`,
-                    }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: '#1a1a1a', fontSize: 13 }}>{s.stop_name}</div>
-                      {s.route_names.length > 0 && (
-                        <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>
-                          {s.route_names.slice(0, 2).join(' · ')}
-                        </div>
-                      )}
-                    </div>
-                    <span style={{ color: '#bbb', fontSize: 11, fontFamily: 'monospace' }}>{s.stop_id}</span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-      </div>
-    </>
-  )
-}
-
-
 
 export function TransitMap() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
@@ -405,7 +46,7 @@ export function TransitMap() {
       setRouteResults(null); setRouteError(''); return
     }
     setRouteLoading(true); setRouteError(''); setRouteResults(null)
-    fetch(`${API}/api/route-plan?from=${routeFrom.stop_id}&to=${routeTo.stop_id}`)
+    fetch(`${API_URL}/api/route-plan?from=${routeFrom.stop_id}&to=${routeTo.stop_id}`)
       .then(r => { if (!r.ok) throw Error(); return r.json() })
       .then(data => {
         if (data.routes.length === 0) throw Error()
@@ -425,7 +66,7 @@ export function TransitMap() {
 
   const fetchVehicles = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/vehicles`)
+      const res = await fetch(`${API_URL}/api/vehicles`)
       if (!res.ok) return
       const data = await res.json()
       setVehicles(data.vehicles || [])
@@ -439,9 +80,9 @@ export function TransitMap() {
   }, [fetchVehicles])
 
   useEffect(() => {
-    fetch(`${API}/api/shapes`).then(r => r.json()).then(setShapes).catch(() => {})
-    fetch(`${API}/api/routes`).then(r => r.json()).then(setRoutes).catch(() => {})
-    fetch(`${API}/api/stations`).then(r => r.json()).then(setStations).catch(() => {})
+    fetch(`${API_URL}/api/shapes`).then(r => r.json()).then(setShapes).catch(() => {})
+    fetch(`${API_URL}/api/routes`).then(r => r.json()).then(setRoutes).catch(() => {})
+    fetch(`${API_URL}/api/stations`).then(r => r.json()).then(setStations).catch(() => {})
   }, [])
 
   const handleStationClick = (s: Station) => {
@@ -459,7 +100,8 @@ export function TransitMap() {
         maxHeight: 'calc(100vh - 60px)', overflowY: 'auto',
       }}>
         <div style={{
-          display: 'flex', gap: 2, padding: 3, background: '#f1f3f5cb', borderRadius: 10, position: 'sticky', top: 0, zIndex: 10000, backdropFilter: 'blur(10px)', 
+          display: 'flex', gap: 2, padding: 3, background: '#f1f3f5cb', borderRadius: 10,
+          position: 'sticky', top: 0, zIndex: 10000, backdropFilter: 'blur(10px)',
         }}>
           {[
             { label: 'Stations', active: !showRoutePlanner, onClick: () => { setShowRoutePlanner(false); setHighlightRoute(undefined) } },
@@ -609,7 +251,7 @@ export function TransitMap() {
         <UserLocation />
         <FlyTo pos={flyPos} />
       </MapContainer>
-      {selectedStation && <StationPanel station={selectedStation} onClose={() => setSelectedStation(null)} />}
+      {selectedStation && <StationPopup station={selectedStation} onClose={() => setSelectedStation(null)} />}
     </div>
   )
 }

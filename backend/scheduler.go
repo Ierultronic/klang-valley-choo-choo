@@ -8,17 +8,22 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+// ponytail: DRY-001 — single helper for both cron and initial import.
+func runAllImports(pool *pgxpool.Pool) {
+	for _, a := range importAgencies {
+		if err := ImportStaticURL(pool, a.name, a.url); err != nil {
+			log.Printf("import %s: %v", a.name, err)
+		}
+	}
+}
+
 func StartScheduler(pool *pgxpool.Pool) {
 	c := cron.New()
 
 	// Re-import GTFS static daily
 	c.AddFunc("@daily", func() {
 		log.Println("Daily GTFS import...")
-		for _, a := range importAgencies {
-			if err := ImportStaticURL(pool, a.name, a.url); err != nil {
-				log.Printf("import %s: %v", a.name, err)
-			}
-		}
+		runAllImports(pool)
 	})
 
 	// Fetch realtime vehicle positions every 30s
@@ -38,19 +43,15 @@ func StartScheduler(pool *pgxpool.Pool) {
 
 	c.Start()
 
-	// Run initial import + service status after DB is ready
+	// Run initial import after DB is ready
 	time.AfterFunc(3*time.Second, func() {
 		log.Println("Initial GTFS import starting...")
-		for _, a := range importAgencies {
-			if err := ImportStaticURL(pool, a.name, a.url); err != nil {
-				log.Printf("initial import %s: %v", a.name, err)
-			}
-		}
+		runAllImports(pool)
 		log.Println("Initial import done")
 		// ponytail: FetchServiceStatus disabled — myrapid.com.my uses JS SPA, can't scrape.
-	// Re-enable when a proper API endpoint is available.
-	// if err := FetchServiceStatus(pool); err != nil {
-	// 	log.Printf("initial service status fetch: %v", err)
-	// }
+		// Re-enable when a proper API endpoint is available.
+		// if err := FetchServiceStatus(pool); err != nil {
+		// 	log.Printf("initial service status fetch: %v", err)
+		// }
 	})
 }

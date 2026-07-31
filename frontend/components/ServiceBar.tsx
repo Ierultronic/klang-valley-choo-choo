@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { API_URL } from '../lib/api'
 
-const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/+$/, '')
+// ---------------------------------------------------------------------------
+// ponytail: DRY-005 — uses shared API_URL from lib/api.ts
+// ---------------------------------------------------------------------------
 
 type Status = {
   line_id: string; line_name: string; status: string; remarks: string
@@ -23,7 +26,7 @@ export function ServiceBar() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch(`${API}/api/service-status`)
+        const res = await fetch(`${API_URL}/api/service-status`)
         if (!res.ok) return
         const data = await res.json()
         setStatuses(data.statuses || [])
