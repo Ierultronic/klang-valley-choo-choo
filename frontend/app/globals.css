@@ -115,6 +115,11 @@ a {
   border-radius: 2px;
 }
 
+/* ── SPINNER ── */
+@keyframes kv-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ── MOTION ── */
 @media (prefers-reduced-motion: reduce) {
   *,

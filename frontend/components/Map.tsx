@@ -19,8 +19,8 @@ import { routeHex } from '../lib/colors'
 //       StationMarkers uses viewport culling (only visible stations rendered).
 //       ShapeLines uses zoom-based point simplification.
 //
-// FEATURE: Bus vehicle toggle — filter bus vehicles (route_type=3) on/off.
-//          Preference persisted in localStorage.
+// FEATURES: Bus vehicle toggle (localStorage) + enhanced route planner
+//           with recent searches, walking estimates, better results layout.
 // ---------------------------------------------------------------------------
 
 const KL_CENTER: [number, number] = [3.1390, 101.6869]
@@ -36,6 +36,53 @@ function loadShowBuses(): boolean {
 function saveShowBuses(v: boolean) {
   localStorage.setItem('kv_show_buses', String(v))
 }
+
+type RecentSearch = { fromId: string; fromName: string; toId: string; toName: string }
+
+function loadRecentSearches(): RecentSearch[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem('kv_recent_searches')
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+function saveRecentSearches(searches: RecentSearch[]) {
+  localStorage.setItem('kv_recent_searches', JSON.stringify(searches))
+}
+
+function addRecentSearch(from: Station, to: Station) {
+  const searches = loadRecentSearches()
+  const entry: RecentSearch = { fromId: from.stop_id, fromName: from.stop_name, toId: to.stop_id, toName: to.stop_name }
+  const filtered = searches.filter(s => !(s.fromId === entry.fromId && s.toId === entry.toId))
+  filtered.unshift(entry)
+  saveRecentSearches(filtered.slice(0, 5))
+}
+
+// ─── walking estimate utils ──────────────────────────────────────────────
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function walkEstimate(minutes: number): string {
+  if (minutes < 1) return '<1 min walk'
+  if (minutes === 1) return '1 min walk'
+  return `${minutes} min walk`
+}
+
+function fmtDuration(sec: number): string {
+  if (sec < 60) return `${sec}s`
+  const m = Math.round(sec / 60)
+  if (m < 60) return `${m} min`
+  return `${Math.floor(m / 60)}h ${m % 60}m`
+}
+
+// ─── FlyTo helper ─────────────────────────────────────────────────────────
 
 function FlyTo({ pos }: { pos: [number, number] | null }) {
   const map = useMap()
@@ -65,7 +112,6 @@ function BusToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
         minWidth: 36, minHeight: 36,
       }}
     >
-      {/* bus icon */}
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960"
         fill={on ? '#2563eb' : 'var(--kv-muted)'} style={{ transition: 'fill .2s' }}>
         <path d="M240-120q-17 0-28.5-11.5T200-160v-82q-18-20-29-44.5T160-340v-380q0-83 69.5-111.5T480-860q166 0 243 26.5T800-720v380q0 29-11 53.5T760-242v82q0 17-11.5 28.5T720-120h-40q-17 0-28.5-11.5T640-160v-40H320v40q0 17-11.5 28.5T280-120h-40Zm0-360h480v-160H240v160Zm100 200q17 0 28.5-11.5T380-320q0-17-11.5-28.5T340-360q-17 0-28.5 11.5T300-320q0 17 11.5 28.5T340-280Zm280 0q17 0 28.5-11.5T660-320q0-17-11.5-28.5T620-360q-17 0-28.5 11.5T580-320q0 17 11.5 28.5T620-280ZM240-240h480v-120H240v120Zm0 0v-120 120Z"/>
@@ -77,7 +123,6 @@ function BusToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 // ─── Main component ───────────────────────────────────────────────────────
 
 export function TransitMap() {
-  // Data from custom hooks — each manages its own lifecycle
   const vehicles = useVehicleData()
   const shapes = useShapeData()
   const routes = useRouteData()
@@ -94,20 +139,18 @@ export function TransitMap() {
     })
   }, [])
 
-  // route_id → route_type lookup (3 = bus)
   const routeTypeMap = useMemo(() => {
     const m = new Map<string, number>()
     for (const r of routes) m.set(r.route_id, r.route_type)
     return m
   }, [routes])
 
-  // Filter vehicles based on bus toggle
   const visibleVehicles = useMemo(() => {
     if (showBuses) return vehicles
     return vehicles.filter(v => routeTypeMap.get(v.route_id) !== 3)
   }, [vehicles, showBuses, routeTypeMap])
 
-  // Local UI state (not fetched)
+  // ─── Local UI state ───────────────────────────────────────────────────
   const [selectedStation, setSelectedStation] = useState<Station | null>(null)
   const [showRoutePlanner, setShowRoutePlanner] = useState(false)
   const [highlightRoute, setHighlightRoute] = useState<string | undefined>()
@@ -118,7 +161,9 @@ export function TransitMap() {
   const [routeLoading, setRouteLoading] = useState(false)
   const [routeError, setRouteError] = useState('')
   const [routeExpandedIdx, setRouteExpandedIdx] = useState<number | null>(null)
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(loadRecentSearches)
 
+  // ─── Route planning effect ────────────────────────────────────────────
   useEffect(() => {
     if (!routeFrom || !routeTo || routeFrom.stop_id === routeTo.stop_id) {
       setRouteResults(null); setRouteError(''); return
@@ -127,13 +172,22 @@ export function TransitMap() {
     fetch(`${API_URL}/api/route-plan?from=${routeFrom.stop_id}&to=${routeTo.stop_id}`)
       .then(r => { if (!r.ok) throw Error(); return r.json() })
       .then(data => {
-        if (data.routes.length === 0) throw Error()
-        setRouteResults(data.routes)
-        setHighlightRoute(data.routes[0].legs[0]?.route_id)
-        const mid = { lat: (routeFrom.stop_lat + routeTo.stop_lat) / 2, lon: (routeFrom.stop_lon + routeTo.stop_lon) / 2 }
+        if (data.routes.length === 0) {
+          setRouteError('No routes found between these stations')
+          setRouteResults([])
+        } else {
+          setRouteResults(data.routes)
+          setHighlightRoute(data.routes[0].legs[0]?.route_id)
+          addRecentSearch(routeFrom!, routeTo!)
+          setRecentSearches(loadRecentSearches())
+        }
+        const mid = { lat: (routeFrom!.stop_lat + routeTo!.stop_lat) / 2, lon: (routeFrom!.stop_lon + routeTo!.stop_lon) / 2 }
         setFlyPos([mid.lat, mid.lon])
       })
-      .catch(() => setRouteError('No route found'))
+      .catch(() => {
+        setRouteError('Unable to find a route between these stations')
+        setRouteResults([])
+      })
       .finally(() => setRouteLoading(false))
   }, [routeFrom, routeTo])
 
@@ -150,7 +204,6 @@ export function TransitMap() {
 
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%' }}>
-      {/* Bus toggle — floating top-left */}
       <BusToggle on={showBuses} onToggle={toggleBuses} />
 
       {!selectedStation && <div style={{
@@ -224,73 +277,221 @@ export function TransitMap() {
               </div>
             </div>
 
-            {routeLoading && <div style={{ fontSize: 'var(--text-sm)', color: 'var(--kv-muted)', textAlign: 'center', padding: 'var(--space-2) 0' }}>Searching routes...</div>}
-            {routeError && <div style={{ color: 'var(--kv-danger)', fontSize: 'var(--text-sm)', padding: 'var(--space-2) var(--space-3)', background: 'var(--kv-bg)', borderRadius: 8 }}>{routeError}</div>}
+            {/* Recent searches quick-select chips */}
+            {recentSearches.length > 0 && !routeFrom && !routeTo && (
+              <div style={{ marginTop: 'var(--space-1)' }}>
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', fontWeight: 600, marginBottom: 'var(--space-1)' }}>Recent</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {recentSearches.map((rs, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        const f = stations.find(s => s.stop_id === rs.fromId)
+                        const t = stations.find(s => s.stop_id === rs.toId)
+                        if (f && t) { setRouteFrom(f); setRouteTo(t) }
+                      }}
+                      style={{
+                        padding: 'var(--space-1) var(--space-2)',
+                        border: '1px solid var(--kv-border)',
+                        borderRadius: 6, cursor: 'pointer',
+                        fontSize: 'var(--text-xs)', fontFamily: 'var(--font-ui)',
+                        background: 'var(--kv-bg)', color: 'var(--kv-ink)',
+                        whiteSpace: 'nowrap',
+                        maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis',
+                        transition: 'background .1s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--kv-surface)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'var(--kv-bg)')}
+                    >
+                      {rs.fromName} → {rs.toName}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
+            {/* Loading state with spinner */}
+            {routeLoading && (
+              <div style={{ fontSize: 'var(--text-sm)', color: 'var(--kv-muted)', textAlign: 'center', padding: 'var(--space-5) 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)' }}>
+                <span style={{ width: 16, height: 16, border: '2px solid var(--kv-border)', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'kv-spin 0.6s linear infinite', display: 'inline-block' }} />
+                Searching routes...
+              </div>
+            )}
+
+            {/* Empty/error state */}
+            {routeError && !routeLoading && (
+              <div style={{
+                color: 'var(--kv-muted)', fontSize: 'var(--text-sm)',
+                padding: 'var(--space-4) var(--space-3)',
+                background: 'var(--kv-bg)', borderRadius: 8,
+                textAlign: 'center', border: '1px solid var(--kv-border)',
+              }}>
+                <div style={{ fontSize: 32, marginBottom: 'var(--space-1)' }}>🚏</div>
+                <div style={{ fontWeight: 600, color: 'var(--kv-ink)', marginBottom: 2 }}>No Routes Found</div>
+                <div>{routeError}</div>
+              </div>
+            )}
+
+            {/* Route results with enhanced layout */}
             {routeResults && routeResults.length > 0 && (
               <div>
                 <div style={{ fontSize: 'var(--text-sm)', color: 'var(--kv-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
                   {routeResults.length} route{routeResults.length > 1 ? 's' : ''} found
+                  {routeResults[0]?.legs[0]?.duration_sec ? (
+                    <span style={{ marginLeft: 'var(--space-2)', fontWeight: 400 }}>
+                      · ~{fmtDuration(routeResults.reduce((sum, r) => sum + r.legs.reduce((s, l) => s + (l.duration_sec || 0), 0), 0) / Math.max(1, routeResults.length))}
+                    </span>
+                  ) : null}
                 </div>
                 {routeResults.map((r, i) => {
                   const expanded = routeExpandedIdx === i
-                  const color = routeHex(r.legs[0]?.route_color, '#ccc')
+                  const leg0Color = routeHex(r.legs[0]?.route_color, '#ccc')
+                  const transferColor = r.legs.length > 1 ? routeHex(r.legs[1]?.route_color, '#999') : undefined
                   const totalStops = r.legs.reduce((s, l) => s + (l.stops?.length || 0), 0)
+
+                  const walkDist = r.legs.length > 1
+                    ? haversineKm(
+                        r.legs[0].to_stop.stop_lat, r.legs[0].to_stop.stop_lon,
+                        r.legs[1].from_stop.stop_lat, r.legs[1].from_stop.stop_lon
+                      )
+                    : 0
+                  const walkMin = Math.ceil(walkDist * 12)
+
                   return (
                   <div key={i} style={{ marginBottom: 6 }}>
                     <button
                       onClick={() => setRouteExpandedIdx(expanded ? null : i)}
                       style={{
-                        width: '100%', padding: 'var(--space-3) var(--space-3)', borderRadius: 8, border: 'none',
+                        width: '100%', padding: 'var(--space-3)', borderRadius: 8, border: 'none',
                         textAlign: 'left', cursor: 'pointer', fontFamily: 'var(--font-ui)',
-                        background: 'var(--kv-surface)', borderLeft: `3px solid ${color}`,
-                        display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+                        background: 'var(--kv-surface)',
+                        borderLeft: `3px solid ${leg0Color}`,
                         transition: 'background .1s',
                       }}
                     >
-                      <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: color, border: `2px solid ${color}44` }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--kv-ink)' }}>
-                          {r.legs.length === 1 ? r.legs[0].route_name : `${r.legs[0].route_name} → ${r.legs[1].route_name}`}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)' }}>
+                        {/* Colored dot(s) for each leg */}
+                        <div style={{ display: 'flex', gap: 2, marginTop: 4, flexShrink: 0 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: '50%', background: leg0Color, border: `2px solid ${leg0Color}44` }} />
+                          {transferColor && (
+                            <>
+                              <div style={{ width: 6, height: 2, background: 'var(--kv-border)', marginTop: 4, borderRadius: 1 }} />
+                              <div style={{ width: 10, height: 10, borderRadius: '50%', background: transferColor, border: `2px solid ${transferColor}44` }} />
+                            </>
+                          )}
                         </div>
-                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginTop: 2 }}>
-                          {r.legs[0].from_stop.stop_name} → {r.legs[r.legs.length-1].to_stop.stop_name}
-                          {totalStops > 0 && ` · ${totalStops} stop${totalStops !== 1 ? 's' : ''}`}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--kv-ink)', lineHeight: 1.4 }}>
+                            {r.legs.length === 1
+                              ? r.legs[0].route_name
+                              : `${r.legs[0].route_name}  →  ${r.legs[1].route_name}`}
+                          </div>
+                          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginTop: 3, lineHeight: 1.3 }}>
+                            {r.legs[0].from_stop.stop_name} → {r.legs[r.legs.length - 1].to_stop.stop_name}
+                            {totalStops > 0 && <span> · {totalStops} stop{totalStops !== 1 ? 's' : ''}</span>}
+                            {r.legs.length > 1 && r.transfer_at && (
+                              <span> · transfer at {r.transfer_at.stop_name}</span>
+                            )}
+                          </div>
+                          {/* Journey summary line */}
+                          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginTop: 3, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span style={{ color: leg0Color, fontWeight: 600 }}>{r.legs[0].route_name}</span>
+                            <span>→</span>
+                            <span style={{ fontWeight: 500 }}>{r.legs[0].to_stop.stop_name}</span>
+                            {r.legs.length > 1 && (
+                              <>
+                                <span style={{ color: transferColor, fontWeight: 600 }}>{r.legs[1].route_name}</span>
+                                <span>→</span>
+                                <span style={{ fontWeight: 500 }}>{r.legs[1].to_stop.stop_name}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
+                        <span style={{ color: 'var(--kv-muted)', fontSize: 'var(--text-xs)', transition: 'transform .15s', transform: expanded ? 'rotate(180deg)' : 'none', flexShrink: 0 }}>▼</span>
                       </div>
-                      <span style={{ color: 'var(--kv-muted)', fontSize: 'var(--text-xs)', transition: 'transform .15s', transform: expanded ? 'rotate(180deg)' : 'none' }}>▼</span>
                     </button>
+
+                    {/* Expanded leg details with timeline */}
                     {expanded && (
-                      <div style={{ marginTop: 4, padding: 'var(--space-1) var(--space-3) var(--space-3) var(--space-3)', background: 'var(--kv-bg)', borderRadius: 8, border: '1px solid var(--kv-border)' }}>
-                        {r.legs.map((leg, li) => (
+                      <div style={{ marginTop: 4, padding: 'var(--space-3)', background: 'var(--kv-bg)', borderRadius: 8, border: '1px solid var(--kv-border)' }}>
+                        {r.legs.map((leg, li) => {
+                          const legColor = routeHex(leg.route_color)
+                          return (
                           <div key={li}>
                             {li > 0 && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', fontSize: 'var(--text-xs)', color: 'var(--kv-accent)', fontWeight: 600 }}>
-                                <span style={{ flex: 1, height: 1, background: 'var(--kv-border)' }} />
-                                Transfer at {r.transfer_at?.stop_name}
-                                <span style={{ flex: 1, height: 1, background: 'var(--kv-border)' }} />
+                              <div style={{
+                                margin: 'var(--space-2) 0', padding: 'var(--space-2) var(--space-3)',
+                                background: 'var(--kv-surface)', borderRadius: 6,
+                                border: '1px dashed var(--kv-border)',
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--text-xs)' }}>
+                                  <span style={{ color: 'var(--kv-accent)', fontWeight: 600 }}>🔄 Transfer</span>
+                                  {r.transfer_at && <span style={{ color: 'var(--kv-ink)', fontWeight: 500 }}>at {r.transfer_at.stop_name}</span>}
+                                  {walkDist > 0.05 && (
+                                    <span style={{ color: 'var(--kv-muted)', fontSize: 'var(--text-xs)' }}>
+                                      · {walkEstimate(walkMin)}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             )}
                             <div>
-                              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginBottom: 'var(--space-1)', fontWeight: 600 }}>
-                                <span style={{ color: routeHex(leg.route_color) }}>●</span> {leg.route_name}
-                                <span style={{ fontWeight: 400, color: 'var(--kv-muted)' }}> · {leg.stops?.length} stops</span>
+                              <div style={{
+                                fontSize: 'var(--text-xs)', fontWeight: 700, color: legColor,
+                                marginBottom: 'var(--space-2)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+                              }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: legColor, display: 'inline-block', flexShrink: 0 }} />
+                                <span>{leg.route_name}</span>
+                                <span style={{ fontWeight: 400, color: 'var(--kv-muted)' }}>
+                                  · {leg.stops?.length || 0} stop{(leg.stops?.length || 0) !== 1 ? 's' : ''}
+                                  {leg.duration_sec ? ` · ~${fmtDuration(leg.duration_sec)}` : ''}
+                                </span>
                               </div>
-                              <div style={{ position: 'relative' }}>
-                                {(leg.stops || []).map((name, si) => (
-                                  <div key={si} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-1) 0', position: 'relative' }}>
-                                    <div style={{ width: 12, height: 12, borderRadius: '50%', flexShrink: 0, zIndex: 1, background: si === 0 || si === (leg.stops?.length || 0) - 1 ? routeHex(leg.route_color) : 'var(--kv-surface)', border: `2px solid ${routeHex(leg.route_color)}` }} />
-                                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--kv-ink)', fontWeight: si === 0 || si === (leg.stops?.length || 0) - 1 ? 600 : 400 }}>
+                              {/* Timeline stop list */}
+                              <div style={{ position: 'relative', paddingLeft: 'var(--space-1)' }}>
+                                {(leg.stops || []).map((name, si) => {
+                                  const isFirst = si === 0
+                                  const isLast = si === (leg.stops?.length || 0) - 1
+                                  const isTransferPoint = li < r.legs.length - 1 && isLast
+                                  return (
+                                  <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)', padding: 'var(--space-1) 0', position: 'relative', minHeight: 28 }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 12 }}>
+                                      <div style={{
+                                        width: 12, height: 12, borderRadius: '50%',
+                                        background: isFirst || isLast ? legColor : 'var(--kv-surface)',
+                                        border: `2px solid ${legColor}`,
+                                        zIndex: 1,
+                                      }} />
+                                      {!isLast && (
+                                        <div style={{ width: 2, flex: 1, background: `${legColor}44`, minHeight: 8 }} />
+                                      )}
+                                    </div>
+                                    <div style={{
+                                      fontSize: 'var(--text-sm)', color: 'var(--kv-ink)',
+                                      fontWeight: isFirst || isLast ? 600 : 400,
+                                      lineHeight: 1.3,
+                                    }}>
                                       {name}
-                                      {si === 0 && <span style={{ color: 'var(--kv-muted)', fontWeight: 400, marginLeft: 4, fontSize: 'var(--text-xs)' }}>(start)</span>}
-                                      {si === (leg.stops?.length || 0) - 1 && <span style={{ color: li < r.legs.length - 1 ? 'var(--kv-accent)' : 'var(--kv-success)', fontWeight: 400, marginLeft: 4, fontSize: 'var(--text-xs)' }}>({li < r.legs.length - 1 ? 'transfer' : 'end'})</span>}
+                                      {isFirst && (
+                                        <span style={{ color: 'var(--kv-muted)', fontWeight: 400, marginLeft: 4, fontSize: 'var(--text-xs)' }}>
+                                          · {leg.from_stop.stop_name === name ? 'start' : 'board'}
+                                        </span>
+                                      )}
+                                      {isLast && (
+                                        <span style={{
+                                          color: isTransferPoint ? 'var(--kv-accent)' : 'var(--kv-success)',
+                                          fontWeight: 600, marginLeft: 4, fontSize: 'var(--text-xs)',
+                                        }}>
+                                          · {isTransferPoint ? 'transfer' : 'arrive'}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
-                                ))}
+                                )})}
                               </div>
                             </div>
                           </div>
-                        ))}
+                        )})}
                       </div>
                     )}
                   </div>
