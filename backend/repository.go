@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -48,6 +49,31 @@ type pgxTransitRepo struct {
 // NewTransitRepo creates a pgx-backed TransitRepo.
 func NewTransitRepo(pool *pgxpool.Pool) TransitRepo {
 	return &pgxTransitRepo{pool: pool}
+}
+
+// ---------------------------------------------------------------------------
+// ponytail: DRY-002 — generic queryList[T] replaces 8 identical
+// "query → defer close → for rows.Next → scan → append" patterns.
+// Each repo method now delegates the boilerplate to this helper.
+// ---------------------------------------------------------------------------
+
+// queryList executes a query, scans each row using scanFn, and returns the results.
+func queryList[T any](ctx context.Context, pool *pgxpool.Pool, query string, args []any, scanFn func(pgx.Rows) (T, error)) ([]T, error) {
+	rows, err := pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []T
+	for rows.Next() {
+		item, err := scanFn(rows)
+		if err != nil {
+			continue
+		}
+		results = append(results, item)
+	}
+	return results, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -150,23 +176,16 @@ func (r *pgxTransitRepo) GetVehicles(ctx context.Context) ([]VehiclePosition, er
 // Stops & Stations
 // ---------------------------------------------------------------------------
 
+// ponytail: DRY-002 — uses queryList[T] helper to eliminate boilerplate.
 func (r *pgxTransitRepo) GetStops(ctx context.Context) ([]Stop, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops ORDER BY stop_name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var stops []Stop
-	for rows.Next() {
-		var s Stop
-		if err := rows.Scan(&s.StopID, &s.StopName, &s.StopLat, &s.StopLon); err != nil {
-			continue
-		}
-		stops = append(stops, s)
-	}
-	return stops, nil
+	return queryList(ctx, r.pool,
+		`SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops ORDER BY stop_name`,
+		nil,
+		func(rows pgx.Rows) (Stop, error) {
+			var s Stop
+			err := rows.Scan(&s.StopID, &s.StopName, &s.StopLat, &s.StopLon)
+			return s, err
+		})
 }
 
 func (r *pgxTransitRepo) GetStopByID(ctx context.Context, stopID string) (Stop, error) {
@@ -221,12 +240,8 @@ func buildETASQL(dayCol string) string {
 		          EXTRACT(SECOND FROM (CURRENT_TIME + INTERVAL '8 hours')))::INTEGER AS sec
 		), base AS (
 		  SELECT DISTINCT
-		    CAST(split_part(st.arrival_time,':',1) AS INTEGER) * 3600 +
-		    CAST(split_part(st.arrival_time,':',2) AS INTEGER) * 60 +
-		    CAST(split_part(st.arrival_time,':',3) AS INTEGER) AS arr_sec,
-		    COALESCE(CAST(split_part(f.end_time,':',1) AS INTEGER) * 3600 +
-		             CAST(split_part(f.end_time,':',2) AS INTEGER) * 60 +
-		             CAST(split_part(f.end_time,':',3) AS INTEGER), 86400) AS end_sec,
+		    gtfs_time_to_seconds(st.arrival_time) AS arr_sec,
+		    COALESCE(gtfs_time_to_seconds(f.end_time), 86400) AS end_sec,
 		    f.headway_secs, t.trip_id, t.direction_id,
 		    r.route_id, r.route_long_name, r.route_color,
 		    COALESCE(t.trip_headsign, '') AS headsign
@@ -310,12 +325,7 @@ func (r *pgxTransitRepo) GetDirectRoutes(ctx context.Context, fromStopID, toStop
 	  r.route_id, r.route_long_name, r.route_color, t.direction_id,
 	  COALESCE(t.shape_id, '') AS shape_id,
 	  (st2.stop_sequence - st1.stop_sequence - 1) AS stops_between,
-	  (CAST(split_part(st2.arrival_time,':',1) AS INTEGER) * 3600 +
-	   CAST(split_part(st2.arrival_time,':',2) AS INTEGER) * 60 +
-	   CAST(split_part(st2.arrival_time,':',3) AS INTEGER)) -
-	  (CAST(split_part(st1.arrival_time,':',1) AS INTEGER) * 3600 +
-	   CAST(split_part(st1.arrival_time,':',2) AS INTEGER) * 60 +
-	   CAST(split_part(st1.arrival_time,':',3) AS INTEGER)) AS duration_sec
+	  gtfs_time_to_seconds(st2.arrival_time) - gtfs_time_to_seconds(st1.arrival_time) AS duration_sec
 	FROM stop_times st1
 	JOIN trips t ON st1.trip_id = t.trip_id
 	JOIN routes r ON t.route_id = r.route_id

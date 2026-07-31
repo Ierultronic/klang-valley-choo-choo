@@ -134,6 +134,16 @@ ALTER TABLE IF EXISTS stop_times DROP CONSTRAINT IF EXISTS stop_times_stop_id_fk
 ALTER TABLE IF EXISTS trips DROP CONSTRAINT IF EXISTS trips_route_id_fkey;
 ALTER TABLE IF EXISTS routes DROP CONSTRAINT IF EXISTS routes_agency_id_fkey;
 ALTER TABLE IF EXISTS trips ADD COLUMN IF NOT EXISTS trip_headsign TEXT;
+
+-- ponytail: DRY-004 — function to convert GTFS "HH:MM:SS" time string to seconds.
+-- Eliminates duplicate CAST(split_part(...)) formulas across ETA and route-plan queries.
+CREATE OR REPLACE FUNCTION gtfs_time_to_seconds(t TEXT) RETURNS INTEGER AS $$
+BEGIN
+    RETURN CAST(split_part(t, ':', 1) AS INTEGER) * 3600
+         + CAST(split_part(t, ':', 2) AS INTEGER) * 60
+         + CAST(split_part(t, ':', 3) AS INTEGER);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
 `
 
 func RunMigrations(pool *pgxpool.Pool) error {
