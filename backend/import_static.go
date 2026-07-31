@@ -25,6 +25,7 @@ var importAgencies = []struct {
 	url  string
 }{
 	{"prasarana-rail", baseURL + "/gtfs-static/prasarana?category=rapid-rail-kl"},
+	{"prasarana-bus", baseURL + "/gtfs-static/prasarana?category=rapid-bus-kl"},
 	{"ktmb", baseURL + "/gtfs-static/ktmb"},
 }
 
