@@ -15,6 +15,9 @@ func runAllImports(pool *pgxpool.Pool) {
 			log.Printf("import %s: %v", a.name, err)
 		}
 	}
+	// Rebuild the transfer graph from the freshly imported GTFS data and
+	// drop the stale planner-graph cache (same as handleImport).
+	PopulateTransfers(pool)
 }
 
 func StartScheduler(pool *pgxpool.Pool) {

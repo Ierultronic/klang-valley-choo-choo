@@ -302,6 +302,7 @@ func (r *pgxTransitRepo) GetDirectRoutes(ctx context.Context, fromStopID, toStop
 	JOIN stop_times st2 ON st1.trip_id = st2.trip_id
 	WHERE st1.stop_id = $1 AND st2.stop_id = $2
 	  AND st1.stop_sequence < st2.stop_sequence
+	  AND r.route_type <> 3
 	ORDER BY r.route_id, duration_sec
 	LIMIT 5`
 
@@ -325,8 +326,10 @@ func (r *pgxTransitRepo) GetDirectRoutes(ctx context.Context, fromStopID, toStop
 
 // GetPlanGraph loads the stop-route graph used by the BFS planner:
 // stop→routes, route→ordered stops, stop→transfer edges, stop→name.
-// This is the raw loader; planner.go caches the result across requests
-// (planGraphCache) and invalidates it when transfers are repopulated.
+// RAIL-ONLY: bus routes (route_type 3) are excluded, so bus stops never
+// enter the graph. This is the raw loader; planner.go caches the result
+// across requests (planGraphCache) and invalidates it when transfers are
+// repopulated.
 func (r *pgxTransitRepo) GetPlanGraph(ctx context.Context) (*planGraph, error) {
 	g := &planGraph{
 		stopLoc:     make(map[string]planStop),
@@ -347,9 +350,16 @@ func (r *pgxTransitRepo) GetPlanGraph(ctx context.Context) (*planGraph, error) {
 	}
 	rows.Close()
 
+	// ponytail: KISS — rail-only scope. Only routes with route_type 0/1/2
+	// (LRT/MRT/KTM/monorail/BRT) participate in planning; bus routes
+	// (route_type 3) are excluded so bus stops never enter the graph.
+	railStops := make(map[string]bool)
 	rows, err = r.pool.Query(ctx, `
 		SELECT DISTINCT st.stop_id, t.route_id
-		FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id`)
+		FROM stop_times st
+		JOIN trips t ON st.trip_id = t.trip_id
+		JOIN routes r ON t.route_id = r.route_id
+		WHERE r.route_type <> 3`)
 	if err != nil {
 		return nil, err
 	}
@@ -359,13 +369,23 @@ func (r *pgxTransitRepo) GetPlanGraph(ctx context.Context) (*planGraph, error) {
 			continue
 		}
 		g.routesByStop[stopID] = append(g.routesByStop[stopID], routeID)
+		railStops[stopID] = true
 	}
 	rows.Close()
 
-	// Representative trip per route → ordered stop list.
+	// Drop stops with no rail trips (bus-only stops) from the graph entirely.
+	for id := range g.stopLoc {
+		if !railStops[id] {
+			delete(g.stopLoc, id)
+		}
+	}
+
+	// Representative trip per rail route → ordered stop list.
 	rows, err = r.pool.Query(ctx, `
 		SELECT rt.route_id, st.stop_id
-		FROM (SELECT DISTINCT ON (t.route_id) t.route_id, t.trip_id FROM trips t) rt
+		FROM (SELECT DISTINCT ON (t.route_id) t.route_id, t.trip_id
+		      FROM trips t JOIN routes r ON t.route_id = r.route_id
+		      WHERE r.route_type <> 3) rt
 		JOIN stop_times st ON st.trip_id = rt.trip_id
 		ORDER BY rt.route_id, st.stop_sequence`)
 	if err != nil {
@@ -394,6 +414,10 @@ func (r *pgxTransitRepo) GetPlanGraph(ctx context.Context) (*planGraph, error) {
 			continue
 		}
 		if from == to {
+			continue
+		}
+		// Rail-only: skip transfer edges touching bus stops.
+		if !railStops[from] || !railStops[to] {
 			continue
 		}
 		g.transfers[from] = append(g.transfers[from], transferEdge{From: from, To: to, DistM: dist})

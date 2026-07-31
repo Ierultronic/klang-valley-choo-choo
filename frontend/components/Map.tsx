@@ -152,6 +152,16 @@ export function TransitMap() {
     [routes]
   )
 
+  // Rail-only stations for the ROUTE PLANNER search: exclude pure bus stops
+  // (all of their route_ids are bus routes). Same predicate as StationMarkers.
+  // The map markers toggle (busRouteIds/StationMarkers) is untouched.
+  const railStations = useMemo(
+    () => stations.filter(s =>
+      s.route_ids.length === 0 || s.route_ids.some(id => !busRouteIds.has(id))
+    ),
+    [stations, busRouteIds]
+  )
+
   const visibleVehicles = useMemo(() => {
     if (showBuses) return vehicles
     return vehicles.filter(v => railRouteIds.has(v.route_id))
@@ -264,7 +274,7 @@ export function TransitMap() {
                     </div>
                   </div>
                 ) : (
-                  <StationSearch stations={stations} onSelect={setRouteFrom} placeholder="From..." />
+                  <StationSearch stations={railStations} onSelect={setRouteFrom} placeholder="From..." />
                 )}
                 <button onClick={swapRoute} style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--kv-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', flexShrink: 0, fontSize: 'var(--text-base)', color: 'var(--kv-muted)' }}>⇄</button>
               </div>
@@ -279,7 +289,7 @@ export function TransitMap() {
                     </div>
                   </div>
                 ) : (
-                  <StationSearch stations={stations} onSelect={setRouteTo} placeholder="To..." />
+                  <StationSearch stations={railStations} onSelect={setRouteTo} placeholder="To..." />
                 )}
               </div>
             </div>
@@ -293,8 +303,8 @@ export function TransitMap() {
                     <button
                       key={i}
                       onClick={() => {
-                        const f = stations.find(s => s.stop_id === rs.fromId)
-                        const t = stations.find(s => s.stop_id === rs.toId)
+                        const f = railStations.find(s => s.stop_id === rs.fromId)
+                        const t = railStations.find(s => s.stop_id === rs.toId)
                         if (f && t) { setRouteFrom(f); setRouteTo(t) }
                       }}
                       style={{
