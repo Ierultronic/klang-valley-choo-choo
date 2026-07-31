@@ -31,9 +31,6 @@ type TransitRepo interface {
 	// ETA
 	GetETA(ctx context.Context, stopID string, dayCol string) ([]ETA, error)
 
-	// Service Status
-	GetServiceStatus(ctx context.Context) ([]ServiceStatus, error)
-
 	// Route Planning
 	GetDirectRoutes(ctx context.Context, fromStopID, toStopID string) ([]RoutePlanRoute, error)
 	GetNamedTransfers(ctx context.Context, fromStopID, toStopID string) ([]xferInfo, error)
@@ -287,32 +284,6 @@ func (r *pgxTransitRepo) GetETA(ctx context.Context, stopID string, dayCol strin
 		etas = []ETA{}
 	}
 	return etas, nil
-}
-
-// ---------------------------------------------------------------------------
-// Service Status
-// ---------------------------------------------------------------------------
-
-func (r *pgxTransitRepo) GetServiceStatus(ctx context.Context) ([]ServiceStatus, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT line_id, line_name, status, remarks, updated_at
-		 FROM service_status ORDER BY line_name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var statuses []ServiceStatus
-	for rows.Next() {
-		var s ServiceStatus
-		var updatedAt time.Time
-		if err := rows.Scan(&s.LineID, &s.LineName, &s.Status, &s.Remarks, &updatedAt); err != nil {
-			continue
-		}
-		s.UpdatedAt = updatedAt.Format(time.RFC3339)
-		statuses = append(statuses, s)
-	}
-	return statuses, nil
 }
 
 // ---------------------------------------------------------------------------

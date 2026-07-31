@@ -3,31 +3,14 @@ package main
 import (
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // ---------------------------------------------------------------------------
-// ponytail: SOLID-S-001 — admin handler (import) + service status.
-// handleImport still takes *pgxpool.Pool directly since it triggers
-// GTFS import logic (gtfs.go) which needs raw DB access for bulk writes.
+// ponytail: SOLID-S-001 — admin handler (import).
+// handleImport takes *pgxpool.Pool directly since GTFS import needs raw DB access.
 // ---------------------------------------------------------------------------
-
-func handleServiceStatus(repo TransitRepo) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		statuses, err := repo.GetServiceStatus(r.Context())
-		if err != nil {
-			jsonError(w, err.Error(), 500)
-			return
-		}
-
-		jsonResponse(w, ServiceStatusResponse{
-			Statuses: statuses,
-			Time:     time.Now().Format(time.RFC3339),
-		})
-	}
-}
 
 func handleImport(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

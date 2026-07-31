@@ -38,7 +38,6 @@ func main() {
 	mux.HandleFunc("GET /api/stations/{stop_id}/eta", handleStationETA(repo))
 	mux.HandleFunc("GET /api/shapes", handleShapes(repo))
 	mux.HandleFunc("GET /api/route-plan", handleRoutePlan(repo))
-	mux.HandleFunc("GET /api/service-status", handleServiceStatus(repo))
 	mux.HandleFunc("POST /api/admin/import", handleImport(pool))
 
 	StartScheduler(pool)

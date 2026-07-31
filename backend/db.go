@@ -113,20 +113,16 @@ CREATE INDEX IF NOT EXISTS idx_shapes_sid ON shapes(shape_id);
 CREATE INDEX IF NOT EXISTS idx_trips_route ON trips(route_id);
 CREATE INDEX IF NOT EXISTS idx_trips_shape ON trips(shape_id);
 
-CREATE TABLE IF NOT EXISTS service_status (
-    line_id TEXT PRIMARY KEY,
-    line_name TEXT,
-    status TEXT,
-    remarks TEXT,
-    updated_at TIMESTAMP DEFAULT NOW()
-);
+-- ponytail: YAGNI-003 — service_status table disabled; scraper (myrapid.com.my) is SPA, can't scrape.
+-- CREATE TABLE IF NOT EXISTS service_status (
+--     line_id TEXT PRIMARY KEY,
+--     line_name TEXT,
+--     status TEXT,
+--     remarks TEXT,
+--     updated_at TIMESTAMP DEFAULT NOW()
+-- );
 
-CREATE TABLE IF NOT EXISTS import_log (
-    id SERIAL PRIMARY KEY,
-    agency TEXT,
-    imported_at TIMESTAMP DEFAULT NOW(),
-    status TEXT
-);
+-- ponytail: YAGNI-004 — import_log table deleted; never written to. Re-add when import logging is needed.
 
 -- ponytail: drop FK constraints from previous runs — GTFS data has orphans we don't control
 ALTER TABLE IF EXISTS stop_times DROP CONSTRAINT IF EXISTS stop_times_trip_id_fkey;

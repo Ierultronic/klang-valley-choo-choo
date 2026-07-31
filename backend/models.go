@@ -69,14 +69,6 @@ type VehiclePosition struct {
 	FetchedAt    string  `json:"fetched_at"`
 }
 
-type ServiceStatus struct {
-	LineID    string `json:"line_id"`
-	LineName  string `json:"line_name"`
-	Status    string `json:"status"`
-	Remarks   string `json:"remarks"`
-	UpdatedAt string `json:"updated_at"`
-}
-
 type Station struct {
 	StopID     string   `json:"stop_id"`
 	StopName   string   `json:"stop_name"`
@@ -101,11 +93,6 @@ type VehicleResponse struct {
 	Vehicles []VehiclePosition `json:"vehicles"`
 	Count    int               `json:"count"`
 	Time     string            `json:"time"`
-}
-
-type ServiceStatusResponse struct {
-	Statuses []ServiceStatus `json:"statuses"`
-	Time     string          `json:"time"`
 }
 
 type RouteLeg struct {

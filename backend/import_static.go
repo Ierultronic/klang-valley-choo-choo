@@ -20,8 +20,6 @@ import (
 
 const baseURL = "https://api.data.gov.my"
 
-var agencies = []string{"prasarana", "ktmb"}
-
 var importAgencies = []struct {
 	name string
 	url  string
@@ -85,12 +83,6 @@ func ImportStaticURL(pool *pgxpool.Pool, name, url string) error {
 
 	log.Printf("Import complete: %s", name)
 	return nil
-}
-
-func ImportStatic(pool *pgxpool.Pool, agency string) error {
-	// ponytail: only supports ktmb; prasarana needs category param, use ImportStaticURL directly
-	url := fmt.Sprintf("%s/gtfs-static/%s", baseURL, agency)
-	return ImportStaticURL(pool, agency, url)
 }
 
 // readCSV reads a zip CSV file into a slice of header→value maps.
