@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS stop_times (
     stop_sequence INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_stop_times_trip ON stop_times(trip_id);
+CREATE INDEX IF NOT EXISTS idx_stop_times_stop ON stop_times(stop_id);
 
 CREATE TABLE IF NOT EXISTS shapes (
     id SERIAL PRIMARY KEY,
@@ -105,6 +106,18 @@ CREATE TABLE IF NOT EXISTS vehicle_positions (
     delay_seconds INTEGER DEFAULT 0,
     fetched_at TIMESTAMP DEFAULT NOW()
 );
+
+-- ponytail: KISS-006 — materialized transfer graph for route planning.
+-- Named pairs: same stop name on different stop_ids (same-platform interchanges).
+-- Walk pairs: stops within 500m walking distance (haversine). Populated by PopulateTransfers().
+CREATE TABLE IF NOT EXISTS transfers (
+    from_stop_id TEXT NOT NULL,
+    to_stop_id TEXT NOT NULL,
+    transfer_type TEXT NOT NULL DEFAULT 'walk',
+    distance_m INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (from_stop_id, to_stop_id)
+);
+CREATE INDEX IF NOT EXISTS idx_transfers_from ON transfers(from_stop_id);
 
 CREATE INDEX IF NOT EXISTS idx_vp_fetched ON vehicle_positions(fetched_at DESC);
 CREATE INDEX IF NOT EXISTS idx_vp_vehicle ON vehicle_positions(vehicle_id);

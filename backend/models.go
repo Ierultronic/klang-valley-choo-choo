@@ -108,16 +108,23 @@ type RouteLeg struct {
 	Stops        []string `json:"stops"`
 }
 
+type TransferPoint struct {
+	FromStop  Stop `json:"from_stop"`
+	ToStop    Stop `json:"to_stop"`
+	DistanceM int  `json:"distance_m"`
+}
+
 type RoutePlanRoute struct {
-	RouteID      string     `json:"route_id,omitempty"`
-	RouteName    string     `json:"route_name,omitempty"`
-	RouteColor   string     `json:"route_color,omitempty"`
-	DirectionID  int        `json:"direction_id,omitempty"`
-	StopsBetween int        `json:"stops_between,omitempty"`
-	DurationSec  int        `json:"duration_sec,omitempty"`
-	ShapeID      string     `json:"shape_id,omitempty"`
-	Legs         []RouteLeg `json:"legs"`
-	TransferAt   *Stop      `json:"transfer_at,omitempty"`
+	RouteID      string          `json:"route_id,omitempty"`
+	RouteName    string          `json:"route_name,omitempty"`
+	RouteColor   string          `json:"route_color,omitempty"`
+	DirectionID  int             `json:"direction_id,omitempty"`
+	StopsBetween int             `json:"stops_between,omitempty"`
+	DurationSec  int             `json:"duration_sec,omitempty"`
+	ShapeID      string          `json:"shape_id,omitempty"`
+	Legs         []RouteLeg      `json:"legs"`
+	Transfers    []TransferPoint `json:"transfers,omitempty"`
+	TransferAt   *Stop           `json:"transfer_at,omitempty"`
 }
 
 type RoutePlanResult struct {

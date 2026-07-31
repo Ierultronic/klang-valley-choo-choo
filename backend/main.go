@@ -27,6 +27,9 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Rebuild the transfer graph so the planner works even before any manual import.
+	PopulateTransfers(pool)
+
 	// ponytail: SOLID-D-001 — repository layer; handlers depend on interface, not pool
 	repo := NewTransitRepo(pool)
 

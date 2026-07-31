@@ -20,6 +20,8 @@ func handleImport(pool *pgxpool.Pool) http.HandlerFunc {
 					log.Printf("import %s: %v", a.name, err)
 				}
 			}
+			// Rebuild the transfer graph from the freshly imported GTFS data.
+			PopulateTransfers(pool)
 		}()
 		jsonResponse(w, map[string]string{"status": "import started"})
 	}

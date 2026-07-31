@@ -33,8 +33,7 @@ type TransitRepo interface {
 
 	// Route Planning
 	GetDirectRoutes(ctx context.Context, fromStopID, toStopID string) ([]RoutePlanRoute, error)
-	GetNamedTransfers(ctx context.Context, fromStopID, toStopID string) ([]xferInfo, error)
-	GetNearbyTransfers(ctx context.Context, fromStopID, toStopID string) ([]xferInfo, error)
+	GetPlanGraph(ctx context.Context) (*planGraph, error)
 	GetRouteStops(ctx context.Context, routeID, fromName, toName string) ([]string, error)
 }
 
@@ -324,101 +323,84 @@ func (r *pgxTransitRepo) GetDirectRoutes(ctx context.Context, fromStopID, toStop
 	return results, nil
 }
 
-func (r *pgxTransitRepo) GetNamedTransfers(ctx context.Context, fromStopID, toStopID string) ([]xferInfo, error) {
-	q := `
-	WITH from_route_ids AS (
-	  SELECT DISTINCT t.route_id FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id WHERE st.stop_id = $1
-	),
-	to_route_ids AS (
-	  SELECT DISTINCT t.route_id FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id WHERE st.stop_id = $2
-	)
-	SELECT DISTINCT ON (s.stop_name)
-	  s.stop_id, s.stop_name, s.stop_lat, s.stop_lon,
-	  fr.route_id, r1.route_long_name, r1.route_color,
-	  tr.route_id, r2.route_long_name, r2.route_color
-	FROM (
-	  SELECT DISTINCT s.stop_name, t.route_id
-	  FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id JOIN stops s ON st.stop_id = s.stop_id
-	  WHERE t.route_id IN (SELECT route_id FROM from_route_ids) AND st.stop_id NOT IN ($1, $2)
-	) fr
-	JOIN (
-	  SELECT DISTINCT s.stop_name, t.route_id
-	  FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id JOIN stops s ON st.stop_id = s.stop_id
-	  WHERE t.route_id IN (SELECT route_id FROM to_route_ids) AND st.stop_id NOT IN ($1, $2)
-	) tr ON fr.stop_name = tr.stop_name AND fr.route_id != tr.route_id
-	JOIN stops s ON s.stop_name = fr.stop_name
-	JOIN routes r1 ON fr.route_id = r1.route_id
-	JOIN routes r2 ON tr.route_id = r2.route_id
-	ORDER BY s.stop_name, fr.route_id, tr.route_id`
+// GetPlanGraph loads the stop-route graph used by the BFS planner:
+// stop→routes, route→ordered stops, stop→transfer edges, stop→name.
+// This is the raw loader; planner.go caches the result across requests
+// (planGraphCache) and invalidates it when transfers are repopulated.
+func (r *pgxTransitRepo) GetPlanGraph(ctx context.Context) (*planGraph, error) {
+	g := &planGraph{
+		stopLoc:     make(map[string]planStop),
+		routesByStop: make(map[string][]string),
+		stopsByRoute: make(map[string][]planStop),
+		transfers:   make(map[string][]transferEdge),
+	}
 
-	rows, err := r.pool.Query(ctx, q, fromStopID, toStopID)
+	rows, err := r.pool.Query(ctx, `SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var xfers []xferInfo
 	for rows.Next() {
-		var x xferInfo
-		if err := rows.Scan(&x.stopID, &x.stopName, &x.stopLat, &x.stopLon,
-			&x.leg1RouteID, &x.leg1Name, &x.leg1Color,
-			&x.leg2RouteID, &x.leg2Name, &x.leg2Color); err != nil {
-			continue
+		var s planStop
+		if err := rows.Scan(&s.ID, &s.Name, &s.Lat, &s.Lon); err == nil {
+			g.stopLoc[s.ID] = s
 		}
-		x.stop2ID, x.stop2Name, x.stop2Lat, x.stop2Lon = x.stopID, x.stopName, x.stopLat, x.stopLon
-		xfers = append(xfers, x)
 	}
-	return xfers, nil
-}
+	rows.Close()
 
-func (r *pgxTransitRepo) GetNearbyTransfers(ctx context.Context, fromStopID, toStopID string) ([]xferInfo, error) {
-	q := `
-	WITH from_route_ids AS (
-	  SELECT DISTINCT t.route_id FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id WHERE st.stop_id = $1
-	),
-	to_route_ids AS (
-	  SELECT DISTINCT t.route_id FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id WHERE st.stop_id = $2
-	)
-	SELECT DISTINCT ON (fs.route_id, ts.route_id)
-	  fs.stop_id, fs.stop_name, fs.stop_lat, fs.stop_lon,
-	  ts.stop_id, ts.stop_name, ts.stop_lat, ts.stop_lon,
-	  fs.route_id, r1.route_long_name, r1.route_color,
-	  ts.route_id, r2.route_long_name, r2.route_color
-	FROM (
-	  SELECT DISTINCT s.stop_id, s.stop_name, s.stop_lat, s.stop_lon, t.route_id
-	  FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id JOIN stops s ON st.stop_id = s.stop_id
-	  WHERE t.route_id IN (SELECT route_id FROM from_route_ids)
-	) fs
-	JOIN (
-	  SELECT DISTINCT s.stop_id, s.stop_name, s.stop_lat, s.stop_lon, t.route_id
-	  FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id JOIN stops s ON st.stop_id = s.stop_id
-	  WHERE t.route_id IN (SELECT route_id FROM to_route_ids)
-	) ts ON fs.route_id != ts.route_id AND fs.stop_name != ts.stop_name
-	  AND ABS(fs.stop_lat - ts.stop_lat) < 0.003
-	  AND ABS(fs.stop_lon - ts.stop_lon) < 0.003
-	JOIN routes r1 ON fs.route_id = r1.route_id
-	JOIN routes r2 ON ts.route_id = r2.route_id
-	ORDER BY fs.route_id, ts.route_id, fs.stop_name
-	LIMIT 5`
-
-	rows, err := r.pool.Query(ctx, q, fromStopID, toStopID)
+	rows, err = r.pool.Query(ctx, `
+		SELECT DISTINCT st.stop_id, t.route_id
+		FROM stop_times st JOIN trips t ON st.trip_id = t.trip_id`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var xfers []xferInfo
 	for rows.Next() {
-		var x xferInfo
-		if err := rows.Scan(&x.stopID, &x.stopName, &x.stopLat, &x.stopLon,
-			&x.stop2ID, &x.stop2Name, &x.stop2Lat, &x.stop2Lon,
-			&x.leg1RouteID, &x.leg1Name, &x.leg1Color,
-			&x.leg2RouteID, &x.leg2Name, &x.leg2Color); err != nil {
+		var stopID, routeID string
+		if err := rows.Scan(&stopID, &routeID); err != nil {
 			continue
 		}
-		xfers = append(xfers, x)
+		g.routesByStop[stopID] = append(g.routesByStop[stopID], routeID)
 	}
-	return xfers, nil
+	rows.Close()
+
+	// Representative trip per route → ordered stop list.
+	rows, err = r.pool.Query(ctx, `
+		SELECT rt.route_id, st.stop_id
+		FROM (SELECT DISTINCT ON (t.route_id) t.route_id, t.trip_id FROM trips t) rt
+		JOIN stop_times st ON st.trip_id = rt.trip_id
+		ORDER BY rt.route_id, st.stop_sequence`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var routeID, stopID string
+		if err := rows.Scan(&routeID, &stopID); err != nil {
+			continue
+		}
+		if s, ok := g.stopLoc[stopID]; ok {
+			g.stopsByRoute[routeID] = append(g.stopsByRoute[routeID], s)
+		}
+	}
+	rows.Close()
+
+	rows, err = r.pool.Query(ctx, `
+		SELECT from_stop_id, to_stop_id, distance_m FROM transfers`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var from, to string
+		var dist int
+		if err := rows.Scan(&from, &to, &dist); err != nil {
+			continue
+		}
+		if from == to {
+			continue
+		}
+		g.transfers[from] = append(g.transfers[from], transferEdge{From: from, To: to, DistM: dist})
+	}
+	rows.Close()
+
+	return g, nil
 }
 
 // ponytail: returns stop names in order between two stations on a route
