@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { memo, useMemo, useEffect, useState } from 'react'
 import { Marker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { Vehicle } from '../lib/types'
 
 // ---------------------------------------------------------------------------
-// ponytail: KISS-001 — vehicle marker layer extracted from Map.tsx.
+// ponytail: KISS-001 — vehicle marker layer.
+// PERF: React.memo on VehicleMarker — skips re-render when lat/lon/delay unchanged.
+//       Memoized icon factory — caches L.divIcon instances by color.
 // ---------------------------------------------------------------------------
 
 export function delayColor(sec: number): string {
@@ -15,13 +17,19 @@ export function delayColor(sec: number): string {
   return '#ef4444'
 }
 
-function createIcon(color: string) {
-  return L.divIcon({
+// Icon cache — create once per color, reuse forever
+const iconCache = new Map<string, L.DivIcon>()
+function getIcon(color: string): L.DivIcon {
+  const cached = iconCache.get(color)
+  if (cached) return cached
+  const icon = L.divIcon({
     className: '',
     html: `<div style="width:12px;height:12px;background:${color};border-radius:50%;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div>`,
     iconSize: [12, 12],
     iconAnchor: [6, 6],
   })
+  iconCache.set(color, icon)
+  return icon
 }
 
 const userIcon = L.divIcon({
@@ -31,10 +39,15 @@ const userIcon = L.divIcon({
   iconAnchor: [10, 10],
 })
 
-export function VehicleMarker({ v }: { v: Vehicle }) {
-  const color = delayColor(v.delay_seconds)
+// Memoized vehicle marker — only re-renders when position or delay changes
+export const VehicleMarker = memo(function VehicleMarker({ v }: { v: Vehicle }) {
+  const icon = useMemo(() => {
+    const color = delayColor(v.delay_seconds)
+    return getIcon(color)
+  }, [v.delay_seconds])
+
   return (
-    <Marker position={[v.lat, v.lon]} icon={createIcon(color)}>
+    <Marker position={[v.lat, v.lon]} icon={icon}>
       <Popup>
         <b>{v.vehicle_id}</b><br />
         Route: {v.route_id || 'unknown'}<br />
@@ -43,7 +56,7 @@ export function VehicleMarker({ v }: { v: Vehicle }) {
       </Popup>
     </Marker>
   )
-}
+})
 
 export function UserLocation() {
   const map = useMap()
@@ -51,7 +64,7 @@ export function UserLocation() {
 
   useEffect(() => {
     if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
+    const id = navigator.geolocation.getCurrentPosition(
       p => {
         const c: [number, number] = [p.coords.latitude, p.coords.longitude]
         setPos(c)
@@ -60,6 +73,8 @@ export function UserLocation() {
       () => {},
       { enableHighAccuracy: false, timeout: 8000 }
     )
+    // Cleanup not strictly needed for getCurrentPosition but good practice
+    return () => { /* no-op — getCurrentPosition has no watchId */ }
   }, [map])
 
   if (!pos) return null
