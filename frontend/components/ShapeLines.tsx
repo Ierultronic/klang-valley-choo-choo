@@ -35,6 +35,13 @@ export const ShapeLines = memo(function ShapeLines({
     [routes]
   )
 
+  // Bus routes (route_type 3) are NOT drawn as polylines — user only wants the
+  // marker toggle for buses. Highlighted routes (route planner) still override.
+  const busRouteIds = useMemo(
+    () => new Set(routes.filter(r => r.route_type === 3).map(r => r.route_id)),
+    [routes]
+  )
+
   // One epsilon per render cycle, based on current zoom
   const epsilon = useMemo(() => zoomToEpsilon(zoom), [zoom])
 
@@ -42,6 +49,9 @@ export const ShapeLines = memo(function ShapeLines({
     <>
       {shapes.map(s => {
         const isHL = highlight && s.route_id === highlight
+        // Skip bus route polylines entirely — unless this exact route is
+        // highlighted by the route planner (highlight overrides the exclusion).
+        if (!isHL && busRouteIds.has(s.route_id)) return null
         const color = routeMap.get(s.route_id)?.route_color
           ? `#${routeMap.get(s.route_id)!.route_color}`
           : '#666'
