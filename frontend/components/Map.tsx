@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
-import { Vehicle, Shape, Route, Station, RoutePlanRoute } from '../lib/types'
+import { Station, RoutePlanRoute } from '../lib/types'
 import { API_URL } from '../lib/api'
+import { useStationData, useVehicleData, useShapeData, useRouteData } from '../lib/hooks'
 import { VehicleMarker, UserLocation } from './VehicleMarkers'
 import { ShapeLines } from './ShapeLines'
 import { StationMarkers } from './StationMarkers'
@@ -11,8 +12,11 @@ import { StationSearch } from './StationSearch'
 import { StationPopup } from './StationPopup'
 
 // ---------------------------------------------------------------------------
-// ponytail: KISS-001 — Map.tsx is now the Leaflet orchestrator only.
-// All sub-components (vehicles, shapes, stations, search, popup) are in separate files.
+// ponytail: KISS-001 — Map.tsx is the Leaflet orchestrator.
+// PERF: Data fetching delegated to custom hooks (useStationData, etc.).
+//       Components are React.memo'd so re-renders only affect changed items.
+//       StationMarkers uses viewport culling (only visible stations rendered).
+//       ShapeLines uses zoom-based point simplification.
 // ---------------------------------------------------------------------------
 
 const KL_CENTER: [number, number] = [3.1390, 101.6869]
@@ -26,10 +30,13 @@ function FlyTo({ pos }: { pos: [number, number] | null }) {
 }
 
 export function TransitMap() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [shapes, setShapes] = useState<Shape[]>([])
-  const [routes, setRoutes] = useState<Route[]>([])
-  const [stations, setStations] = useState<Station[]>([])
+  // Data from custom hooks — each manages its own lifecycle
+  const vehicles = useVehicleData()
+  const shapes = useShapeData()
+  const routes = useRouteData()
+  const stations = useStationData()
+
+  // Local UI state (not fetched)
   const [selectedStation, setSelectedStation] = useState<Station | null>(null)
   const [showRoutePlanner, setShowRoutePlanner] = useState(false)
   const [highlightRoute, setHighlightRoute] = useState<string | undefined>()
@@ -64,32 +71,11 @@ export function TransitMap() {
     setRouteFrom(t); setRouteTo(f)
   }
 
-  const fetchVehicles = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/vehicles`)
-      if (!res.ok) return
-      const data = await res.json()
-      setVehicles(data.vehicles || [])
-    } catch {}
-  }, [])
-
-  useEffect(() => {
-    fetchVehicles()
-    const t = setInterval(fetchVehicles, 30000)
-    return () => clearInterval(t)
-  }, [fetchVehicles])
-
-  useEffect(() => {
-    fetch(`${API_URL}/api/shapes`).then(r => r.json()).then(setShapes).catch(() => {})
-    fetch(`${API_URL}/api/routes`).then(r => r.json()).then(setRoutes).catch(() => {})
-    fetch(`${API_URL}/api/stations`).then(r => r.json()).then(setStations).catch(() => {})
-  }, [])
-
-  const handleStationClick = (s: Station) => {
+  const handleStationClick = useCallback((s: Station) => {
     setSelectedStation(s)
     setShowRoutePlanner(false)
     setFlyPos([s.stop_lat, s.stop_lon])
-  }
+  }, [])
 
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%' }}>
