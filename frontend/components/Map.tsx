@@ -99,23 +99,27 @@ function BusToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
     <button
       onClick={onToggle}
       title={on ? 'Hide buses' : 'Show buses'}
+      aria-pressed={on}
       style={{
-        position: 'absolute', top: 12, left: 12, zIndex: 1000,
-        width: 36, height: 36, borderRadius: 10,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        border: '1.5px solid var(--kv-border)',
-        cursor: 'pointer',
-        background: 'var(--kv-surface)',
-        boxShadow: 'var(--shadow-sm)',
-        opacity: on ? 1 : 0.55,
-        transition: 'opacity .2s, transform .15s',
-        minWidth: 36, minHeight: 36,
+        position: 'absolute', bottom: 68, left: 12, zIndex: 1100,
+        height: 'var(--touch-target-min)', minWidth: 'var(--touch-target-min)',
+        padding: '0 var(--space-4)',
+        display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+        borderRadius: 999, cursor: 'pointer',
+        fontFamily: 'var(--font-ui)', fontSize: 'var(--text-base)', fontWeight: 600,
+        letterSpacing: '.02em', whiteSpace: 'nowrap',
+        border: `1.5px solid ${on ? 'var(--kv-accent)' : 'var(--kv-border)'}`,
+        background: on ? 'var(--kv-accent)' : 'var(--kv-surface)',
+        color: on ? '#ffffff' : 'var(--kv-muted)',
+        boxShadow: on ? 'var(--shadow-md)' : 'var(--shadow-sm)',
+        transition: 'background .2s, color .2s, border-color .2s, box-shadow .2s',
       }}
     >
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 -960 960 960"
-        fill={on ? '#2563eb' : 'var(--kv-muted)'} style={{ transition: 'fill .2s' }}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 -960 960 960"
+        fill={on ? '#ffffff' : 'var(--kv-muted)'} style={{ flexShrink: 0, transition: 'fill .2s' }}>
         <path d="M240-120q-17 0-28.5-11.5T200-160v-82q-18-20-29-44.5T160-340v-380q0-83 69.5-111.5T480-860q166 0 243 26.5T800-720v380q0 29-11 53.5T760-242v82q0 17-11.5 28.5T720-120h-40q-17 0-28.5-11.5T640-160v-40H320v40q0 17-11.5 28.5T280-120h-40Zm0-360h480v-160H240v160Zm100 200q17 0 28.5-11.5T380-320q0-17-11.5-28.5T340-360q-17 0-28.5 11.5T300-320q0 17 11.5 28.5T340-280Zm280 0q17 0 28.5-11.5T660-320q0-17-11.5-28.5T620-360q-17 0-28.5 11.5T580-320q0 17 11.5 28.5T620-280ZM240-240h480v-120H240v120Zm0 0v-120 120Z"/>
       </svg>
+      Buses
     </button>
   )
 }
