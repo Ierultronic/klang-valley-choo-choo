@@ -459,47 +459,64 @@ export function TransitMap() {
                                   {leg.duration_sec ? ` · ~${fmtDuration(leg.duration_sec)}` : ''}
                                 </span>
                               </div>
-                              {/* Timeline stop list */}
+                              {/* Timeline stop list — cap at ~10 rows: first 4 + ellipsis + last 3 */}
                               <div style={{ position: 'relative', paddingLeft: 'var(--space-1)' }}>
-                                {(leg.stops || []).map((name, si) => {
-                                  const isFirst = si === 0
-                                  const isLast = si === (leg.stops?.length || 0) - 1
-                                  const isTransferPoint = li < r.legs.length - 1 && isLast
-                                  return (
-                                  <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)', padding: 'var(--space-1) 0', position: 'relative', minHeight: 28 }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 12 }}>
+                                {(() => {
+                                  const all = leg.stops || []
+                                  const capped = all.length > 10
+                                    ? [...all.slice(0, 4), null, ...all.slice(-3)]
+                                    : all
+                                  return capped.map((name, si) => {
+                                    if (name === null) {
+                                      return (
+                                        <div key={`gap-${si}`} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-1) 0', position: 'relative', minHeight: 28 }}>
+                                          <div style={{ flexShrink: 0, width: 12, textAlign: 'center', color: 'var(--kv-muted)', fontSize: 'var(--text-xs)' }}>⋮</div>
+                                          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', fontStyle: 'italic' }}>
+                                            … {all.length - 7} more stop{(all.length - 7) !== 1 ? 's' : ''}
+                                          </div>
+                                        </div>
+                                      )
+                                    }
+                                    const isFirst = si === 0
+                                    const isLast = si === capped.length - 1
+                                    const isTransferPoint = li < r.legs.length - 1 && isLast
+                                    return (
+                                    <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)', padding: 'var(--space-1) 0', position: 'relative', minHeight: 28 }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 12 }}>
+                                        <div style={{
+                                          width: 12, height: 12, borderRadius: '50%',
+                                          background: isFirst || isLast ? legColor : 'var(--kv-surface)',
+                                          border: `2px solid ${legColor}`,
+                                          zIndex: 1,
+                                        }} />
+                                        {!isLast && (
+                                          <div style={{ width: 2, flex: 1, background: `${legColor}44`, minHeight: 8 }} />
+                                        )}
+                                      </div>
                                       <div style={{
-                                        width: 12, height: 12, borderRadius: '50%',
-                                        background: isFirst || isLast ? legColor : 'var(--kv-surface)',
-                                        border: `2px solid ${legColor}`,
-                                        zIndex: 1,
-                                      }} />
-                                      {!isLast && (
-                                        <div style={{ width: 2, flex: 1, background: `${legColor}44`, minHeight: 8 }} />
-                                      )}
+                                        fontSize: 'var(--text-sm)', color: 'var(--kv-ink)',
+                                        fontWeight: isFirst || isLast ? 600 : 400,
+                                        lineHeight: 1.3,
+                                      }}>
+                                        {name}
+                                        {isFirst && (
+                                          <span style={{ color: 'var(--kv-muted)', fontWeight: 400, marginLeft: 4, fontSize: 'var(--text-xs)' }}>
+                                            · {leg.from_stop.stop_name === name ? 'start' : 'board'}
+                                          </span>
+                                        )}
+                                        {isLast && (
+                                          <span style={{
+                                            color: isTransferPoint ? 'var(--kv-accent)' : 'var(--kv-success)',
+                                            fontWeight: 600, marginLeft: 4, fontSize: 'var(--text-xs)',
+                                          }}>
+                                            · {isTransferPoint ? 'transfer' : 'arrive'}
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
-                                    <div style={{
-                                      fontSize: 'var(--text-sm)', color: 'var(--kv-ink)',
-                                      fontWeight: isFirst || isLast ? 600 : 400,
-                                      lineHeight: 1.3,
-                                    }}>
-                                      {name}
-                                      {isFirst && (
-                                        <span style={{ color: 'var(--kv-muted)', fontWeight: 400, marginLeft: 4, fontSize: 'var(--text-xs)' }}>
-                                          · {leg.from_stop.stop_name === name ? 'start' : 'board'}
-                                        </span>
-                                      )}
-                                      {isLast && (
-                                        <span style={{
-                                          color: isTransferPoint ? 'var(--kv-accent)' : 'var(--kv-success)',
-                                          fontWeight: 600, marginLeft: 4, fontSize: 'var(--text-xs)',
-                                        }}>
-                                          · {isTransferPoint ? 'transfer' : 'arrive'}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                )})}
+                                    )
+                                  })
+                                })()}
                               </div>
                             </div>
                           </div>
