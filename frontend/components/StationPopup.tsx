@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Station, ETA } from '../lib/types'
 import { API_URL } from '../lib/api'
+import { routeHex } from '../lib/colors'
 
 // ---------------------------------------------------------------------------
 // ponytail: KISS-001 — station ETA popup extracted from Map.tsx.
@@ -58,52 +59,53 @@ export function StationPopup({ station, onClose }: {
       />
       <div style={{
         position: 'fixed', top: 10, right: 10, zIndex: 1000,
-        background: 'rgba(255, 255, 255, 0.8)', borderRadius: 10, padding: 16, width: 300,
-        boxShadow: '0 4px 16px rgba(0,0,0,.2)', fontFamily: 'system-ui, sans-serif',
+        background: 'var(--kv-surface)', borderRadius: 'var(--radius-md)', padding: 'var(--space-4)', width: 300,
+        boxShadow: 'var(--shadow-md)', fontFamily: 'var(--font-ui)',
         maxHeight: 'calc(100vh - 40px)', overflowY: 'auto',
-        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2)' }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{station.stop_name}</div>
-            <div style={{ fontSize: 12, color: '#666' }}>
+            <div style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>{station.stop_name}</div>
+            <div style={{ fontSize: 'var(--text-sm)', color: 'var(--kv-muted)' }}>
               {station.route_names.slice(0, 3).join(' / ')}{station.route_names.length > 3 ? ' +more' : ''}
             </div>
           </div>
           <button onClick={onClose} style={{
-            background: 'none', border: 'none', fontSize: 20, cursor: 'pointer',
-            color: '#999', padding: '0 4px', lineHeight: 1,
+            background: 'none', border: 'none', fontSize: 'var(--text-xl)', cursor: 'pointer',
+            color: 'var(--kv-muted)', padding: 0, lineHeight: 1,
+            minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>×</button>
         </div>
 
         {loading ? (
-          <div style={{ color: '#999', padding: '20px 0', textAlign: 'center', fontSize: 13 }}>Loading schedule...</div>
+          <div style={{ color: 'var(--kv-muted)', padding: 'var(--space-5) 0', textAlign: 'center', fontSize: 'var(--text-sm)' }}>Loading schedule...</div>
         ) : etas.length === 0 ? (
-          <div style={{ color: '#999', padding: '20px 0', textAlign: 'center', fontSize: 13 }}>No upcoming arrivals</div>
+          <div style={{ color: 'var(--kv-muted)', padding: 'var(--space-5) 0', textAlign: 'center', fontSize: 'var(--text-sm)' }}>No upcoming arrivals</div>
         ) : (
           [0, 1].map(dir => {
             const items = dirEtas(dir)
             if (!items.length) return null
             return (
-              <div key={dir} style={{ marginTop: dir === 1 ? 12 : 0 }}>
+              <div key={dir} style={{ marginTop: dir === 1 ? 'var(--space-3)' : 0 }}>
                 <div style={{
-                  fontWeight: 600, fontSize: 13, color: '#555', marginBottom: 6,
-                  paddingBottom: 4, borderBottom: '1px solid #eee',
+                  fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--kv-muted)', marginBottom: 6,
+                  paddingBottom: 'var(--space-1)', borderBottom: '1px solid var(--kv-border)',
                 }}>
                   {items[0]?.headsign || (dir === 0 ? 'Direction A' : 'Direction B')}
                 </div>
                 {items.map((e, i) => (
                   <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0',
+                    display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-1) 0',
                   }}>
                     <span style={{
                       width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                      background: e.route_color ? `#${e.route_color}` : '#666',
+                      background: routeHex(e.route_color),
                     }} />
-                    <span style={{ flex: 1, fontSize: 13, color: '#333' }}>{e.route_name}</span>
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>
+                    <span style={{ flex: 1, fontSize: 'var(--text-sm)', color: 'var(--kv-ink)' }}>{e.route_name}</span>
+                    <span style={{ fontWeight: 700, fontSize: 'var(--text-base)' }}>
                       {fmtTime(e.arrival_time)}{' '}
-                      <span style={{ fontWeight: 400, fontSize: 11, color: '#888' }}>
+                      <span style={{ fontWeight: 400, fontSize: 'var(--text-xs)', color: 'var(--kv-muted)' }}>
                         ({minsUntil(e.arrival_time)})
                       </span>
                     </span>

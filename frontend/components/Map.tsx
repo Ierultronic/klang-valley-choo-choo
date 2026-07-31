@@ -10,6 +10,7 @@ import { ShapeLines } from './ShapeLines'
 import { StationMarkers } from './StationMarkers'
 import { StationSearch } from './StationSearch'
 import { StationPopup } from './StationPopup'
+import { routeHex } from '../lib/colors'
 
 // ---------------------------------------------------------------------------
 // ponytail: KISS-001 — Map.tsx is the Leaflet orchestrator.
@@ -81,25 +82,26 @@ export function TransitMap() {
     <div style={{ position: 'relative', height: '100%', width: '100%' }}>
       {!selectedStation && <div style={{
         position: 'absolute', top: 12, right: 12,
-        zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8,
+        zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
         width: 320, maxWidth: 'calc(100vw - 40px)',
         maxHeight: 'calc(100vh - 60px)', overflowY: 'auto',
       }}>
         <div style={{
-          display: 'flex', gap: 2, padding: 3, background: '#f1f3f5cb', borderRadius: 10,
-          position: 'sticky', top: 0, zIndex: 10000, backdropFilter: 'blur(10px)',
+          display: 'flex', gap: 2, padding: 3, background: 'var(--kv-bg)', borderRadius: 'var(--radius-md)',
+          position: 'sticky', top: 0, zIndex: 10000,
         }}>
           {[
             { label: 'Stations', active: !showRoutePlanner, onClick: () => { setShowRoutePlanner(false); setHighlightRoute(undefined) } },
             { label: 'Routes', active: showRoutePlanner, onClick: () => { setShowRoutePlanner(true); setSelectedStation(null) } },
           ].map(b => (
             <button key={b.label} onClick={b.onClick} style={{
-              padding: '5px 16px', border: 'none', cursor: 'pointer', fontSize: 12, display: 'flex',
-              fontWeight: 600, fontFamily: 'system-ui, sans-serif',
+              padding: 'var(--space-1) var(--space-4)', border: 'none', cursor: 'pointer',
+              fontSize: 'var(--text-sm)', display: 'flex',
+              fontWeight: 600, fontFamily: 'var(--font-ui)',
               borderRadius: 7, letterSpacing: '.02em', alignItems: 'center',
-              background: b.active ? 'white' : 'transparent',
-              color: b.active ? '#1a1a1a' : '#888',
-              boxShadow: b.active ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
+              background: b.active ? 'var(--kv-surface)' : 'transparent',
+              color: b.active ? 'var(--kv-ink)' : 'var(--kv-muted)',
+              boxShadow: b.active ? 'var(--shadow-sm)' : 'none',
               transition: 'all .15s',
             }}>
               <span style={{ marginRight: 5, height: 24 }}>
@@ -117,30 +119,30 @@ export function TransitMap() {
           />
         ) : (
           <>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: '#e8f4e8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#16a34a', fontSize: 14, fontWeight: 700 }}>A</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--kv-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'var(--kv-success)', fontSize: 'var(--text-base)', fontWeight: 700 }}>A</div>
                 {routeFrom ? (
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255, 255, 255, 0.7)', borderRadius: 10, padding: '0 12px', boxShadow: '0 2px 8px rgba(0,0,0,.08)', border: '1.5px solid #d1d5dbb3' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#16a34a" stroke="none" style={{ flexShrink: 0 }}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                      <span style={{ flex: 1, fontSize: 14, padding: '10px 0', color: '#1a1a1a', fontFamily: 'system-ui, sans-serif' }}>{routeFrom.stop_name}</span>
-                      <button onClick={() => { setRouteFrom(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null) }} style={{ background: '#e5e7eb', border: 'none', borderRadius: '50%', cursor: 'pointer', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: '#666', fontSize: 12, lineHeight: 1 }}>✕</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', background: 'var(--kv-surface)', opacity: 0.85, borderRadius: 'var(--radius-md)', padding: '0 var(--space-3)', boxShadow: 'var(--shadow-sm)', border: '1.5px solid var(--kv-border)' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--kv-success)" stroke="none" style={{ flexShrink: 0 }}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                      <span style={{ flex: 1, fontSize: 'var(--text-base)', padding: 'var(--space-3) 0', color: 'var(--kv-ink)', fontFamily: 'var(--font-ui)' }}>{routeFrom.stop_name}</span>
+                      <button onClick={() => { setRouteFrom(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null) }} style={{ background: 'var(--kv-border)', border: 'none', borderRadius: '50%', cursor: 'pointer', minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)', width: 'var(--touch-target-min)', height: 'var(--touch-target-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: 'var(--kv-muted)', fontSize: 'var(--text-sm)', lineHeight: 1 }}>✕</button>
                     </div>
                   </div>
                 ) : (
                   <StationSearch stations={stations} onSelect={setRouteFrom} placeholder="From..." />
                 )}
-                <button onClick={swapRoute} style={{ width: 28, height: 28, borderRadius: 8, background: '#f1f3f5', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', flexShrink: 0, fontSize: 14, color: '#666' }}>⇄</button>
+                <button onClick={swapRoute} style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--kv-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer', flexShrink: 0, fontSize: 'var(--text-base)', color: 'var(--kv-muted)' }}>⇄</button>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#dc2626', fontSize: 14, fontWeight: 700 }}>B</div>
+              <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--kv-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'var(--kv-danger)', fontSize: 'var(--text-base)', fontWeight: 700 }}>B</div>
                 {routeTo ? (
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255, 255, 255, 0.7)', borderRadius: 10, padding: '0 12px', boxShadow: '0 2px 8px rgba(0,0,0,.08)', border: '1.5px solid #d1d5db' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#dc2626" stroke="none" style={{ flexShrink: 0 }}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                      <span style={{ flex: 1, fontSize: 14, padding: '10px 0', color: '#1a1a1a', fontFamily: 'system-ui, sans-serif' }}>{routeTo.stop_name}</span>
-                      <button onClick={() => { setRouteTo(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null) }} style={{ background: '#e5e7eb', border: 'none', borderRadius: '50%', cursor: 'pointer', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: '#666', fontSize: 12, lineHeight: 1 }}>✕</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', background: 'var(--kv-surface)', opacity: 0.85, borderRadius: 'var(--radius-md)', padding: '0 var(--space-3)', boxShadow: 'var(--shadow-sm)', border: '1.5px solid var(--kv-border)' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--kv-danger)" stroke="none" style={{ flexShrink: 0 }}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                      <span style={{ flex: 1, fontSize: 'var(--text-base)', padding: 'var(--space-3) 0', color: 'var(--kv-ink)', fontFamily: 'var(--font-ui)' }}>{routeTo.stop_name}</span>
+                      <button onClick={() => { setRouteTo(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null) }} style={{ background: 'var(--kv-border)', border: 'none', borderRadius: '50%', cursor: 'pointer', minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)', width: 'var(--touch-target-min)', height: 'var(--touch-target-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: 'var(--kv-muted)', fontSize: 'var(--text-sm)', lineHeight: 1 }}>✕</button>
                     </div>
                   </div>
                 ) : (
@@ -149,66 +151,66 @@ export function TransitMap() {
               </div>
             </div>
 
-            {routeLoading && <div style={{ fontSize: 13, color: '#888', textAlign: 'center', padding: '8px 0' }}>Searching routes...</div>}
-            {routeError && <div style={{ color: '#dc2626', fontSize: 13, padding: '8px 12px', background: '#fef2f2', borderRadius: 8 }}>{routeError}</div>}
+            {routeLoading && <div style={{ fontSize: 'var(--text-sm)', color: 'var(--kv-muted)', textAlign: 'center', padding: 'var(--space-2) 0' }}>Searching routes...</div>}
+            {routeError && <div style={{ color: 'var(--kv-danger)', fontSize: 'var(--text-sm)', padding: 'var(--space-2) var(--space-3)', background: 'var(--kv-bg)', borderRadius: 8 }}>{routeError}</div>}
 
             {routeResults && routeResults.length > 0 && (
               <div>
-                <div style={{ fontSize: 12, color: '#888', marginBottom: 8, fontWeight: 500 }}>
+                <div style={{ fontSize: 'var(--text-sm)', color: 'var(--kv-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
                   {routeResults.length} route{routeResults.length > 1 ? 's' : ''} found
                 </div>
                 {routeResults.map((r, i) => {
                   const expanded = routeExpandedIdx === i
-                  const color = r.legs[0]?.route_color || 'ccc'
+                  const color = routeHex(r.legs[0]?.route_color, '#ccc')
                   const totalStops = r.legs.reduce((s, l) => s + (l.stops?.length || 0), 0)
                   return (
                   <div key={i} style={{ marginBottom: 6 }}>
                     <button
                       onClick={() => setRouteExpandedIdx(expanded ? null : i)}
                       style={{
-                        width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none',
-                        textAlign: 'left', cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
-                        background: '#ffffff', borderLeft: `3px solid #${color}`,
-                        display: 'flex', alignItems: 'center', gap: 8,
+                        width: '100%', padding: 'var(--space-3) var(--space-3)', borderRadius: 8, border: 'none',
+                        textAlign: 'left', cursor: 'pointer', fontFamily: 'var(--font-ui)',
+                        background: 'var(--kv-surface)', borderLeft: `3px solid ${color}`,
+                        display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
                         transition: 'background .1s',
                       }}
                     >
-                      <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: `#${color}`, border: `2px solid #${color}44` }} />
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: color, border: `2px solid ${color}44` }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: '#1a1a1a' }}>
+                        <div style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--kv-ink)' }}>
                           {r.legs.length === 1 ? r.legs[0].route_name : `${r.legs[0].route_name} → ${r.legs[1].route_name}`}
                         </div>
-                        <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginTop: 2 }}>
                           {r.legs[0].from_stop.stop_name} → {r.legs[r.legs.length-1].to_stop.stop_name}
                           {totalStops > 0 && ` · ${totalStops} stop${totalStops !== 1 ? 's' : ''}`}
                         </div>
                       </div>
-                      <span style={{ color: '#999', fontSize: 11, transition: 'transform .15s', transform: expanded ? 'rotate(180deg)' : 'none' }}>▼</span>
+                      <span style={{ color: 'var(--kv-muted)', fontSize: 'var(--text-xs)', transition: 'transform .15s', transform: expanded ? 'rotate(180deg)' : 'none' }}>▼</span>
                     </button>
                     {expanded && (
-                      <div style={{ marginTop: 4, padding: '6px 12px 10px 12px', background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+                      <div style={{ marginTop: 4, padding: 'var(--space-1) var(--space-3) var(--space-3) var(--space-3)', background: 'var(--kv-bg)', borderRadius: 8, border: '1px solid var(--kv-border)' }}>
                         {r.legs.map((leg, li) => (
                           <div key={li}>
                             {li > 0 && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', fontSize: 11, color: '#2563eb', fontWeight: 600 }}>
-                                <span style={{ flex: 1, height: 1, background: '#dbeafe' }} />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', fontSize: 'var(--text-xs)', color: 'var(--kv-accent)', fontWeight: 600 }}>
+                                <span style={{ flex: 1, height: 1, background: 'var(--kv-border)' }} />
                                 Transfer at {r.transfer_at?.stop_name}
-                                <span style={{ flex: 1, height: 1, background: '#dbeafe' }} />
+                                <span style={{ flex: 1, height: 1, background: 'var(--kv-border)' }} />
                               </div>
                             )}
                             <div>
-                              <div style={{ fontSize: 11, color: '#888', marginBottom: 4, fontWeight: 600 }}>
-                                <span style={{ color: `#${leg.route_color}` }}>●</span> {leg.route_name}
-                                <span style={{ fontWeight: 400, color: '#aaa' }}> · {leg.stops?.length} stops</span>
+                              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginBottom: 'var(--space-1)', fontWeight: 600 }}>
+                                <span style={{ color: routeHex(leg.route_color) }}>●</span> {leg.route_name}
+                                <span style={{ fontWeight: 400, color: 'var(--kv-muted)' }}> · {leg.stops?.length} stops</span>
                               </div>
                               <div style={{ position: 'relative' }}>
                                 {(leg.stops || []).map((name, si) => (
-                                  <div key={si} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', position: 'relative' }}>
-                                    <div style={{ width: 12, height: 12, borderRadius: '50%', flexShrink: 0, zIndex: 1, background: si === 0 || si === (leg.stops?.length || 0) - 1 ? `#${leg.route_color}` : 'white', border: `2px solid #${leg.route_color}` }} />
-                                    <div style={{ fontSize: 12, color: '#1a1a1a', fontWeight: si === 0 || si === (leg.stops?.length || 0) - 1 ? 600 : 400 }}>
+                                  <div key={si} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', padding: 'var(--space-1) 0', position: 'relative' }}>
+                                    <div style={{ width: 12, height: 12, borderRadius: '50%', flexShrink: 0, zIndex: 1, background: si === 0 || si === (leg.stops?.length || 0) - 1 ? routeHex(leg.route_color) : 'var(--kv-surface)', border: `2px solid ${routeHex(leg.route_color)}` }} />
+                                    <div style={{ fontSize: 'var(--text-sm)', color: 'var(--kv-ink)', fontWeight: si === 0 || si === (leg.stops?.length || 0) - 1 ? 600 : 400 }}>
                                       {name}
-                                      {si === 0 && <span style={{ color: '#888', fontWeight: 400, marginLeft: 4, fontSize: 10 }}>(start)</span>}
-                                      {si === (leg.stops?.length || 0) - 1 && <span style={{ color: li < r.legs.length - 1 ? '#2563eb' : '#16a34a', fontWeight: 400, marginLeft: 4, fontSize: 10 }}>({li < r.legs.length - 1 ? 'transfer' : 'end'})</span>}
+                                      {si === 0 && <span style={{ color: 'var(--kv-muted)', fontWeight: 400, marginLeft: 4, fontSize: 'var(--text-xs)' }}>(start)</span>}
+                                      {si === (leg.stops?.length || 0) - 1 && <span style={{ color: li < r.legs.length - 1 ? 'var(--kv-accent)' : 'var(--kv-success)', fontWeight: 400, marginLeft: 4, fontSize: 'var(--text-xs)' }}>({li < r.legs.length - 1 ? 'transfer' : 'end'})</span>}
                                     </div>
                                   </div>
                                 ))}

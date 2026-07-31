@@ -12,9 +12,9 @@ import { Vehicle } from '../lib/types'
 // ---------------------------------------------------------------------------
 
 export function delayColor(sec: number): string {
-  if (sec < 120) return '#22c55e'
-  if (sec < 300) return '#eab308'
-  return '#ef4444'
+  if (sec < 120) return 'var(--kv-success)'
+  if (sec < 300) return 'var(--kv-warning)'
+  return 'var(--kv-danger)'
 }
 
 // Icon cache — create once per color, reuse forever

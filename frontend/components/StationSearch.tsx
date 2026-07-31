@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useState, useRef } from 'react'
 import { Station } from '../lib/types'
+import { routeHex } from '../lib/colors'
 
 // ---------------------------------------------------------------------------
 // ponytail: KISS-001 — station search bar with dropdown extracted from Map.tsx.
@@ -45,17 +46,17 @@ export function StationSearch({ stations, onSelect, placeholder }: {
       }}>
         <div style={{ position: 'relative' }}>
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: focused ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.7)',
+            display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+            background: focused ? 'var(--kv-surface)' : 'var(--kv-surface)',
+            opacity: focused ? 1 : 0.85,
             border: focused ? '1.5px solid #2563eb' : '1.5px solid transparent',
-            borderRadius: 10, padding: '0 12px',
-            backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+            borderRadius: 'var(--radius-md)', padding: '0 var(--space-3)',
             boxShadow: focused
               ? '0 4px 20px rgba(37,99,235,.15), 0 1px 3px rgba(0,0,0,.08)'
-              : '0 2px 8px rgba(0,0,0,.08)',
+              : 'var(--shadow-sm)',
             transition: 'box-shadow .15s, border .15s',
           }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={focused ? '#2563eb' : '#999'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={focused ? '#2563eb' : 'var(--kv-muted)'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
@@ -65,8 +66,8 @@ export function StationSearch({ stations, onSelect, placeholder }: {
               onChange={e => { setQuery(e.target.value); setFocused(true) }}
               onFocus={() => setFocused(true)}
               style={{
-                flex: 1, border: 'none', outline: 'none', fontSize: 14, padding: '10px 0',
-                fontFamily: 'system-ui, sans-serif', color: '#1a1a1a',
+                flex: 1, border: 'none', outline: 'none', fontSize: 'var(--text-base)', padding: 'var(--space-3) 0',
+                fontFamily: 'var(--font-ui)', color: 'var(--kv-ink)',
                 background: 'transparent',
               }}
             />
@@ -74,9 +75,11 @@ export function StationSearch({ stations, onSelect, placeholder }: {
               <button
                 onClick={() => setQuery('')}
                 style={{
-                  background: '#e5e7eb', border: 'none', borderRadius: '50%', cursor: 'pointer',
-                  width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: 0, flexShrink: 0, color: '#666', fontSize: 12, lineHeight: 1,
+                  background: 'var(--kv-border)', border: 'none', borderRadius: '50%', cursor: 'pointer',
+                  minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)',
+                  width: 'var(--touch-target-min)', height: 'var(--touch-target-min)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: 0, flexShrink: 0, color: 'var(--kv-muted)', fontSize: 'var(--text-sm)', lineHeight: 1,
                 }}
               >✕</button>
             )}
@@ -86,9 +89,9 @@ export function StationSearch({ stations, onSelect, placeholder }: {
         {dropPos && focused && query.length > 0 && filtered.length > 0 && (
           <div ref={dropRef} style={{
             position: 'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999,
-            background: 'rgba(255, 255, 255, 0.8)', borderRadius: 10,
-            boxShadow: '0 8px 30px rgba(0,0,0,.12)',
-            border: '1px solid #f0f0f0', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+            background: 'var(--kv-surface)', borderRadius: 'var(--radius-md)',
+            boxShadow: 'var(--shadow-lg)',
+            border: '1px solid var(--kv-border)',
           }}>
             <div style={{
               maskImage: "linear-gradient(to bottom, transparent 0px, black 30px, black calc(100% - 20px), transparent 100%)",
@@ -97,33 +100,33 @@ export function StationSearch({ stations, onSelect, placeholder }: {
               background: 'transparent',
             }}>
               {filtered.map(s => {
-                const color = s.route_color ? `#${s.route_color}` : '#999'
+                const color = routeHex(s.route_color, '#999')
                 return (
                   <button
                     key={s.stop_id}
                     onClick={() => { onSelect(s); setQuery(s.stop_name); setFocused(false) }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                      padding: '10px 14px', border: 'none', borderBottom: '1px solid #f5f5f5',
-                      textAlign: 'left', cursor: 'pointer', fontSize: 13, background: 'white',
-                      fontFamily: 'system-ui, sans-serif', transition: 'background .1s',
+                      padding: 'var(--space-3) var(--space-4)', border: 'none', borderBottom: '1px solid var(--kv-border)',
+                      textAlign: 'left', cursor: 'pointer', fontSize: 'var(--text-sm)', background: 'var(--kv-surface)',
+                      fontFamily: 'var(--font-ui)', transition: 'background .1s',
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f8f9ff')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'white')}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--kv-bg)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'var(--kv-surface)')}
                   >
                     <div style={{
                       width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: color,
                       border: `2px solid ${color}33`,
                     }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: '#1a1a1a', fontSize: 13 }}>{s.stop_name}</div>
+                      <div style={{ fontWeight: 600, color: 'var(--kv-ink)', fontSize: 'var(--text-sm)' }}>{s.stop_name}</div>
                       {s.route_names.length > 0 && (
-                        <div style={{ color: '#888', fontSize: 11, marginTop: 2 }}>
+                        <div style={{ color: 'var(--kv-muted)', fontSize: 'var(--text-xs)', marginTop: 2 }}>
                           {s.route_names.slice(0, 2).join(' · ')}
                         </div>
                       )}
                     </div>
-                    <span style={{ color: '#bbb', fontSize: 11, fontFamily: 'monospace' }}>{s.stop_id}</span>
+                    <span style={{ color: 'var(--kv-muted)', fontSize: 'var(--text-xs)', fontFamily: 'var(--font-mono)' }}>{s.stop_id}</span>
                   </button>
                 )
               })}
