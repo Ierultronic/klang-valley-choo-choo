@@ -170,6 +170,82 @@ function BusToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   )
 }
 
+// ─── Line legend pill (UI-UX-NEXT #3) ──────────────────────────────────────
+// Tappable row of rail line color dots above the BusToggle. Tap a dot →
+// filter the map to that line (shared highlightRoute state, so it overrides
+// the plan highlight — documented: visual only, cards/popups unaffected).
+// Tap again → clear (restores the plan highlight if a plan is active).
+
+function LineLegend({
+  routes,
+  active,
+  onToggle,
+}: {
+  routes: Route[]
+  /** Legend-selected route_id (if any). */
+  active: string | undefined
+  onToggle: (routeId: string) => void
+}) {
+  // Unique rail lines (route_type 0/1/2), ordered by route_type then name.
+  const railLines = useMemo(() => {
+    const seen = new Map<string, Route>()
+    routes.forEach(r => {
+      if (r.route_type !== 3 && !seen.has(r.route_id)) seen.set(r.route_id, r)
+    })
+    return [...seen.values()].sort(
+      (a, b) => a.route_type - b.route_type
+        || (a.route_long_name || a.route_short_name).localeCompare(b.route_long_name || b.route_short_name)
+    )
+  }, [routes])
+
+  if (railLines.length === 0) return null
+
+  return (
+    <div
+      style={{
+        position: 'absolute', bottom: 120, left: 12, zIndex: 1100,
+        height: 'var(--touch-target-min)', maxWidth: 'calc(100vw - 24px)',
+        padding: '0 var(--space-3)',
+        display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+        background: 'var(--kv-surface)', boxShadow: 'var(--shadow-md)',
+        borderRadius: 999, fontSize: 'var(--text-xs)',
+        overflowX: 'auto', flexWrap: 'nowrap',
+      }}
+    >
+      {railLines.map(r => {
+        const isActive = active === r.route_id
+        const name = r.route_long_name || r.route_short_name
+        return (
+          <button
+            key={r.route_id}
+            onClick={() => onToggle(r.route_id)}
+            aria-label={name}
+            aria-pressed={isActive}
+            title={name}
+            style={{
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              padding: 0, flexShrink: 0,
+              width: 28, height: '100%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <span style={{
+              width: 10, height: 10, borderRadius: '50%',
+              background: routeHex(r.route_color),
+              boxShadow: isActive ? '0 0 0 2px var(--kv-ink)' : 'none',
+            }} />
+          </button>
+        )
+      })}
+      {railLines.length > 8 && (
+        <span style={{ color: 'var(--kv-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          · {railLines.length} lines
+        </span>
+      )}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────────────────
 
 export function TransitMap() {
@@ -364,6 +440,12 @@ export function TransitMap() {
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%' }}>
       <BusToggle on={showBuses} onToggle={toggleBuses} />
+      <LineLegend
+        routes={routes}
+        active={legendHighlight}
+        onToggle={(routeId) => setLegendHighlight(cur => cur === routeId ? undefined : routeId)}
+      />
+
       {!selectedStation && <div style={{
         position: 'absolute', top: 12, right: 12,
         zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
