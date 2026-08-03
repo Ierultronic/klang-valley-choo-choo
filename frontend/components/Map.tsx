@@ -1,8 +1,8 @@
 'use client'
 
-import { Fragment, useEffect, useState, useCallback, useMemo } from 'react'
+import { Fragment, useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
-import { Station, RoutePlanRoute } from '../lib/types'
+import { Station, RoutePlanRoute, RouteLeg, ETA } from '../lib/types'
 import { API_URL } from '../lib/api'
 import { useStationData, useVehicleData, useShapeData, useRouteData } from '../lib/hooks'
 import { VehicleMarker, UserLocation } from './VehicleMarkers'
@@ -72,6 +72,59 @@ function fmtDuration(sec: number): string {
   const m = Math.round(sec / 60)
   if (m < 60) return `${m} min`
   return `${Math.floor(m / 60)}h ${m % 60}m`
+}
+
+// ─── boarding ETA helpers (item #1) ──────────────────────────────────────
+
+/** Minutes until an arrival. Same clock math as StationPopup's minsUntil
+ *  (MYT, GTFS "HH:MM:SS" may exceed 24:00), but numeric and clock-agnostic
+ *  so the 30s countdown timer can re-render with a fresh `now`. */
+function minsUntilNum(arrival: string, now: number = Date.now()): number {
+  const [h, m] = arrival.split(':').map(Number)
+  const base = new Date(now)
+  const myt = new Date(now + base.getTimezoneOffset() * 60000 + 28800000)
+  return h * 60 + m - (myt.getHours() * 60 + myt.getMinutes())
+}
+
+function fmtTime(t: string): string {
+  const [h, m] = t.split(':').map(Number)
+  const ap = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  return `${h12}:${String(m).padStart(2, '0')} ${ap}`
+}
+
+/** First ETA entry for a leg's route_id + direction_id at its boarding stop. */
+function findLegEta(leg: RouteLeg, etaCache: Map<string, ETA[]>): ETA | undefined {
+  return etaCache.get(leg.from_stop.stop_id)?.find(
+    e => e.route_id === leg.route_id && e.direction_id === leg.direction_id
+  )
+}
+
+/** Collapsed-card meta line: next train at the first boarding stop. */
+function NextTrainLine({ leg, etaCache, now }: { leg: RouteLeg; etaCache: Map<string, ETA[]>; now: number }) {
+  const entry = findLegEta(leg, etaCache)
+  if (!entry) {
+    return (
+      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginTop: 3 }}>
+        No more trains today
+      </div>
+    )
+  }
+  const mins = minsUntilNum(entry.arrival_time, now)
+  if (mins < 2) {
+    return (
+      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-success)', fontWeight: 700, marginTop: 3 }}>
+        Boarding now
+      </div>
+    )
+  }
+  return (
+    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginTop: 3 }}>
+      Next <span style={{ color: routeHex(leg.route_color, '#999'), fontWeight: 600 }}>{leg.route_name}</span>:{' '}
+      <span style={{ color: 'var(--kv-success)', fontWeight: 600 }}>{fmtTime(entry.arrival_time)}</span>{' '}
+      ({mins} min)
+    </div>
+  )
 }
 
 // ─── FlyTo helper ─────────────────────────────────────────────────────────
@@ -207,6 +260,45 @@ export function TransitMap() {
       })
       .finally(() => setRouteLoading(false))
   }, [routeFrom, routeTo])
+
+  // ─── Boarding ETA cache (item #1) ─────────────────────────────────────
+  // ETA lists fetched ONCE per unique boarding stop and cached in a ref
+  // (reused across plan results); state mirrors the cache to re-render
+  // cards when a fetch lands. No refetch on the 30s countdown tick.
+  const etaCacheRef = useRef<Map<string, ETA[]>>(new Map())
+  const [boardingEtas, setBoardingEtas] = useState<Map<string, ETA[]>>(new Map())
+
+  useEffect(() => {
+    if (!routeResults) return
+    const stopIds = new Set<string>()
+    routeResults.forEach(r => r.legs.forEach(l => stopIds.add(l.from_stop.stop_id)))
+    let cancelled = false
+    const pending: Promise<void>[] = []
+    stopIds.forEach(id => {
+      if (etaCacheRef.current.has(id)) return
+      pending.push(
+        fetch(`${API_URL}/api/stations/${id}/eta`)
+          .then(r => (r.ok ? r.json() : []))
+          .then(data => {
+            if (cancelled) return
+            const next = new Map(etaCacheRef.current)
+            next.set(id, Array.isArray(data) ? data : [])
+            etaCacheRef.current = next
+            setBoardingEtas(next)
+          })
+          .catch(() => {})
+      )
+    })
+    return () => { cancelled = true }
+  }, [routeResults])
+
+  // Single shared 30s countdown timer — re-renders only, no refetch.
+  const [nowTick, setNowTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(n => n + 1), 30000)
+    return () => clearInterval(t)
+  }, [])
+  const nowMs = useMemo(() => Date.now(), [nowTick])
 
   const swapRoute = () => {
     const f = routeFrom, t = routeTo
@@ -430,6 +522,8 @@ export function TransitMap() {
                               <span> · {walkEstimate(Math.ceil(totalWalkKm * 12))}</span>
                             )}
                           </div>
+                          {/* Next-train countdown at the first boarding stop */}
+                          {r.legs[0] && <NextTrainLine leg={r.legs[0]} etaCache={boardingEtas} now={nowMs} />}
                           {/* Journey summary line */}
                           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginTop: 3, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                             {r.legs.map((leg, li) => (
@@ -483,6 +577,10 @@ export function TransitMap() {
                                   · {leg.stops?.length || 0} stop{(leg.stops?.length || 0) !== 1 ? 's' : ''}
                                   {leg.duration_sec ? ` · ~${fmtDuration(leg.duration_sec)}` : ''}
                                 </span>
+                              </div>
+                              {/* Board row: boarding stop + headsign (ETA if known, else destination) */}
+                              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--kv-muted)', marginBottom: 'var(--space-2)' }}>
+                                🚉 Board {leg.from_stop.stop_name} · towards {findLegEta(leg, boardingEtas)?.headsign || leg.to_stop.stop_name}
                               </div>
                               {/* Timeline stop list — cap at ~10 rows: first 4 + ellipsis + last 3 */}
                               <div style={{ position: 'relative', paddingLeft: 'var(--space-1)' }}>
