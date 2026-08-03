@@ -15,11 +15,15 @@ export const ShapeLines = memo(function ShapeLines({
   shapes,
   routes,
   highlight,
+  hiddenRoutes,
 }: {
   shapes: Shape[]
   routes: Route[]
   // Single route_id (legend filter) or an array (multi-leg plan highlight).
   highlight?: string | string[]
+  // route_ids the user hid in the line menu — their polylines are NOT
+  // rendered at all (hidden beats highlight/dim).
+  hiddenRoutes?: Set<string>
 }) {
   const map = useMap()
   const [zoom, setZoom] = useState(map.getZoom())
@@ -49,6 +53,8 @@ export const ShapeLines = memo(function ShapeLines({
   return (
     <>
       {shapes.map(s => {
+        // User-hid line: skip entirely — no polyline at all (not even dimmed).
+        if (hiddenRoutes?.has(s.route_id)) return null
         // Multi-leg plan highlight (string[]) or single-route legend filter.
         const isHL = Array.isArray(highlight)
           ? highlight.includes(s.route_id)

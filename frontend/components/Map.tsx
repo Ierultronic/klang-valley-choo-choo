@@ -38,6 +38,20 @@ function saveShowBuses(v: boolean) {
   localStorage.setItem('kv_show_buses', String(v))
 }
 
+// Hidden rail lines (per-line show/hide menu). Persisted as a JSON array of
+// route_ids under kv_hidden_lines; restored into a Set on load.
+function loadHiddenLines(): Set<string> {
+  if (typeof window === 'undefined') return new Set()
+  try {
+    const raw = localStorage.getItem('kv_hidden_lines')
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set()
+  } catch { return new Set() }
+}
+
+function saveHiddenLines(lines: Set<string>) {
+  localStorage.setItem('kv_hidden_lines', JSON.stringify([...lines]))
+}
+
 type RecentSearch = { fromId: string; fromName: string; toId: string; toName: string }
 
 function loadRecentSearches(): RecentSearch[] {
@@ -170,22 +184,26 @@ function BusToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   )
 }
 
-// ─── Line legend pill (UI-UX-NEXT #3) ──────────────────────────────────────
-// Tappable row of rail line color dots above the BusToggle. Tap a dot →
-// filter the map to that line (shared highlightRoute state, so it overrides
-// the plan highlight — documented: visual only, cards/popups unaffected).
-// Tap again → clear (restores the plan highlight if a plan is active).
+// ─── Line visibility menu (hamburger) ─────────────────────────────────────
+// Replaces the legend pill: a 44px hamburger button opens a panel listing
+// every rail line BY NAME with a show/hide switch. Hidden route_ids persist
+// to localStorage kv_hidden_lines; ShapeLines skips hidden polylines and
+// StationMarkers drops stations served ONLY by hidden lines.
 
-function LineLegend({
+function LineMenu({
   routes,
-  active,
+  hidden,
   onToggle,
+  onShowAll,
 }: {
   routes: Route[]
-  /** Legend-selected route_id (if any). */
-  active: string | undefined
+  /** route_ids currently hidden (persisted). */
+  hidden: Set<string>
   onToggle: (routeId: string) => void
+  onShowAll: () => void
 }) {
+  const [open, setOpen] = useState(false)
+
   // Unique rail lines (route_type 0/1/2), ordered by route_type then name.
   const railLines = useMemo(() => {
     const seen = new Map<string, Route>()
@@ -199,48 +217,113 @@ function LineLegend({
   }, [routes])
 
   if (railLines.length === 0) return null
+  const hiddenCount = railLines.filter(r => hidden.has(r.route_id)).length
 
   return (
-    <div
-      style={{
-        position: 'absolute', bottom: 120, left: 12, zIndex: 1100,
-        height: 'var(--touch-target-min)', maxWidth: 'calc(100vw - 24px)',
-        padding: '0 var(--space-3)',
-        display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
-        background: 'var(--kv-surface)', boxShadow: 'var(--shadow-md)',
-        borderRadius: 999, fontSize: 'var(--text-xs)',
-        overflowX: 'auto', flexWrap: 'nowrap',
-      }}
-    >
-      {railLines.map(r => {
-        const isActive = active === r.route_id
-        const name = r.route_long_name || r.route_short_name
-        return (
+    <div style={{
+      position: 'absolute', bottom: 120, left: 12, zIndex: 1100,
+      display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+    }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-label={open ? 'Close line list' : 'Open line list'}
+        aria-expanded={open}
+        title="Rail lines"
+        style={{
+          width: 'var(--touch-target-min)', height: 'var(--touch-target-min)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: `1.5px solid ${hiddenCount > 0 ? 'var(--kv-accent)' : 'var(--kv-border)'}`,
+          background: 'var(--kv-surface)', color: 'var(--kv-ink)',
+          borderRadius: 'var(--radius-md)', cursor: 'pointer',
+          boxShadow: 'var(--shadow-md)', transition: 'border-color .2s',
+        }}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
+          <path d="M120-240v-80h720v80H120Zm0-200v-80h720v80H120Zm0-200v-80h720v80H120Z"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(var(--touch-target-min) + var(--space-2))', left: 0,
+          width: 260, maxWidth: 'calc(100vw - 24px)',
+          maxHeight: 'min(65vh, 420px)', overflowY: 'auto',
+          display: 'flex', flexDirection: 'column', gap: 2,
+          padding: 'var(--space-2)',
+          background: 'var(--kv-surface)', border: '1.5px solid var(--kv-border)',
+          borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)',
+        }}>
+          {/* Reset row */}
           <button
-            key={r.route_id}
-            onClick={() => onToggle(r.route_id)}
-            aria-label={name}
-            aria-pressed={isActive}
-            title={name}
+            onClick={onShowAll}
+            disabled={hiddenCount === 0}
             style={{
-              border: 'none', background: 'transparent', cursor: 'pointer',
-              padding: 0, flexShrink: 0,
-              width: 28, height: '100%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+              width: '100%', minHeight: 'var(--touch-target-min)',
+              padding: '0 var(--space-2)', border: 'none', borderRadius: 8,
+              background: 'transparent', cursor: 'pointer', textAlign: 'left',
+              fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)', fontWeight: 600,
+              color: hiddenCount === 0 ? 'var(--kv-muted)' : 'var(--kv-accent)',
+              opacity: hiddenCount === 0 ? 0.6 : 1,
+              borderBottom: '1px solid var(--kv-border)', marginBottom: 'var(--space-1)',
             }}
           >
-            <span style={{
-              width: 10, height: 10, borderRadius: '50%',
-              background: routeHex(r.route_color),
-              boxShadow: isActive ? '0 0 0 2px var(--kv-ink)' : 'none',
-            }} />
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
+              <path d="M440-280h80v-160h160v-80H520v-160h-80v160H280v80h160v160Zm40 200q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/>
+            </svg>
+            Show all lines
           </button>
-        )
-      })}
-      {railLines.length > 8 && (
-        <span style={{ color: 'var(--kv-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>
-          · {railLines.length} lines
-        </span>
+
+          {railLines.map(r => {
+            const isHidden = hidden.has(r.route_id)
+            const name = r.route_long_name || r.route_short_name
+            return (
+              <button
+                key={r.route_id}
+                onClick={() => onToggle(r.route_id)}
+                aria-label={`${isHidden ? 'Show' : 'Hide'} ${name}`}
+                aria-pressed={!isHidden}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+                  width: '100%', minHeight: 'var(--touch-target-min)',
+                  padding: '0 var(--space-2)', border: 'none', borderRadius: 8,
+                  background: 'transparent', cursor: 'pointer', textAlign: 'left',
+                  fontFamily: 'var(--font-ui)', fontSize: 'var(--text-sm)',
+                  color: isHidden ? 'var(--kv-muted)' : 'var(--kv-ink)',
+                  transition: 'background .1s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--kv-bg)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <span style={{
+                  width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                  background: routeHex(r.route_color),
+                  opacity: isHidden ? 0.35 : 1,
+                }} />
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {name}
+                </span>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: 'relative', flexShrink: 0,
+                    width: 36, height: 20, borderRadius: 999,
+                    background: isHidden ? 'var(--kv-border)' : 'var(--kv-success)',
+                    transition: 'background .2s',
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: 2,
+                    left: isHidden ? 2 : 18,
+                    width: 16, height: 16, borderRadius: '50%',
+                    background: '#ffffff', boxShadow: '0 1px 2px rgba(0,0,0,.25)',
+                    transition: 'left .2s',
+                  }} />
+                </span>
+              </button>
+            )
+          })}
+        </div>
       )}
     </div>
   )
@@ -263,6 +346,25 @@ export function TransitMap() {
       saveShowBuses(next)
       return next
     })
+  }, [])
+
+  // ─── Hidden rail lines (per-line show/hide, kv_hidden_lines) ───────────
+  const [hiddenLines, setHiddenLines] = useState<Set<string>>(loadHiddenLines)
+
+  const toggleHiddenLine = useCallback((routeId: string) => {
+    setHiddenLines(prev => {
+      const next = new Set(prev)
+      if (next.has(routeId)) next.delete(routeId)
+      else next.add(routeId)
+      saveHiddenLines(next)
+      return next
+    })
+  }, [])
+
+  const showAllLines = useCallback(() => {
+    const empty = new Set<string>()
+    setHiddenLines(empty)
+    saveHiddenLines(empty)
   }, [])
 
   // Route ids of all RAIL routes (route_type 0/1/2, i.e. NOT 3). When the bus
@@ -293,16 +395,15 @@ export function TransitMap() {
   )
 
   const visibleVehicles = useMemo(() => {
-    if (showBuses) return vehicles
-    return vehicles.filter(v => railRouteIds.has(v.route_id))
-  }, [vehicles, showBuses, railRouteIds])
+    // Also drop vehicles on user-hidden lines — no floating trains on
+    // invisible tracks (hiddenLines only ever contains rail route_ids).
+    if (showBuses) return vehicles.filter(v => !hiddenLines.has(v.route_id))
+    return vehicles.filter(v => railRouteIds.has(v.route_id) && !hiddenLines.has(v.route_id))
+  }, [vehicles, showBuses, railRouteIds, hiddenLines])
 
   // ─── Local UI state ───────────────────────────────────────────────────
   const [selectedStation, setSelectedStation] = useState<Station | null>(null)
   const [showRoutePlanner, setShowRoutePlanner] = useState(false)
-  // Legend-filtered line (UI-UX-NEXT #3). Separate from the derived plan
-  // highlight so tapping a legend dot overrides the plan until tapped again.
-  const [legendHighlight, setLegendHighlight] = useState<string | undefined>()
   const [flyPos, setFlyPos] = useState<[number, number] | null>(null)
   const [routeFrom, setRouteFrom] = useState<Station | null>(null)
   const [routeTo, setRouteTo] = useState<Station | null>(null)
@@ -318,8 +419,6 @@ export function TransitMap() {
       setRouteResults(null); setRouteError(''); return
     }
     setRouteLoading(true); setRouteError(''); setRouteResults(null)
-    // A fresh plan owns the map highlight — drop any legend filter.
-    setLegendHighlight(undefined)
     fetch(`${API_URL}/api/route-plan?from=${routeFrom.stop_id}&to=${routeTo.stop_id}`)
       .then(r => { if (!r.ok) throw Error(); return r.json() })
       .then(data => {
@@ -352,10 +451,6 @@ export function TransitMap() {
     const legs = routeExpandedIdx === null ? r.legs.slice(0, 1) : r.legs
     return legs.map(l => l.route_id)
   }, [showRoutePlanner, routeResults, routeExpandedIdx])
-
-  // Legend tap overrides the plan highlight (documented in UI-UX-NEXT #3):
-  // visual only — cards/popups unaffected. Tap again restores the plan.
-  const effectiveHighlight = legendHighlight ?? planHighlight
 
   // Active plan card driving the RouteHighlight overlay (default: best route).
   const activePlanRoute = showRoutePlanner && routeResults && routeResults.length > 0
@@ -440,10 +535,11 @@ export function TransitMap() {
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%' }}>
       <BusToggle on={showBuses} onToggle={toggleBuses} />
-      <LineLegend
+      <LineMenu
         routes={routes}
-        active={legendHighlight}
-        onToggle={(routeId) => setLegendHighlight(cur => cur === routeId ? undefined : routeId)}
+        hidden={hiddenLines}
+        onToggle={toggleHiddenLine}
+        onShowAll={showAllLines}
       />
 
       {!selectedStation && <div style={{
@@ -457,7 +553,7 @@ export function TransitMap() {
           position: 'sticky', top: 0, zIndex: 10000,
         }}>
           {[
-            { label: 'Stations', active: !showRoutePlanner, onClick: () => { setShowRoutePlanner(false); setLegendHighlight(undefined) } },
+            { label: 'Stations', active: !showRoutePlanner, onClick: () => setShowRoutePlanner(false) },
             { label: 'Routes', active: showRoutePlanner, onClick: () => { setShowRoutePlanner(true); setSelectedStation(null) } },
           ].map(b => (
             <button key={b.label} onClick={b.onClick} style={{
@@ -493,7 +589,7 @@ export function TransitMap() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', background: 'var(--kv-surface)', opacity: 0.85, borderRadius: 'var(--radius-md)', padding: '0 var(--space-3)', boxShadow: 'var(--shadow-sm)', border: '1.5px solid var(--kv-border)' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--kv-success)" stroke="none" style={{ flexShrink: 0 }}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                       <span style={{ flex: 1, fontSize: 'var(--text-base)', padding: 'var(--space-3) 0', color: 'var(--kv-ink)', fontFamily: 'var(--font-ui)' }}>{routeFrom.stop_name}</span>
-                      <button onClick={() => { setRouteFrom(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null); setLegendHighlight(undefined) }} style={{ background: 'var(--kv-border)', border: 'none', borderRadius: '50%', cursor: 'pointer', minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)', width: 'var(--touch-target-min)', height: 'var(--touch-target-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: 'var(--kv-muted)', fontSize: 'var(--text-sm)', lineHeight: 1 }}>✕</button>
+                      <button onClick={() => { setRouteFrom(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null) }} style={{ background: 'var(--kv-border)', border: 'none', borderRadius: '50%', cursor: 'pointer', minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)', width: 'var(--touch-target-min)', height: 'var(--touch-target-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: 'var(--kv-muted)', fontSize: 'var(--text-sm)', lineHeight: 1 }}>✕</button>
                     </div>
                   </div>
                 ) : (
@@ -508,7 +604,7 @@ export function TransitMap() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', background: 'var(--kv-surface)', opacity: 0.85, borderRadius: 'var(--radius-md)', padding: '0 var(--space-3)', boxShadow: 'var(--shadow-sm)', border: '1.5px solid var(--kv-border)' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--kv-danger)" stroke="none" style={{ flexShrink: 0 }}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                       <span style={{ flex: 1, fontSize: 'var(--text-base)', padding: 'var(--space-3) 0', color: 'var(--kv-ink)', fontFamily: 'var(--font-ui)' }}>{routeTo.stop_name}</span>
-                      <button onClick={() => { setRouteTo(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null); setLegendHighlight(undefined) }} style={{ background: 'var(--kv-border)', border: 'none', borderRadius: '50%', cursor: 'pointer', minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)', width: 'var(--touch-target-min)', height: 'var(--touch-target-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: 'var(--kv-muted)', fontSize: 'var(--text-sm)', lineHeight: 1 }}>✕</button>
+                      <button onClick={() => { setRouteTo(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null) }} style={{ background: 'var(--kv-border)', border: 'none', borderRadius: '50%', cursor: 'pointer', minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)', width: 'var(--touch-target-min)', height: 'var(--touch-target-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: 'var(--kv-muted)', fontSize: 'var(--text-sm)', lineHeight: 1 }}>✕</button>
                     </div>
                   </div>
                 ) : (
@@ -765,13 +861,11 @@ export function TransitMap() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution="&copy; OpenStreetMap contributors"
         />
-        <ShapeLines shapes={shapes} routes={routes} highlight={effectiveHighlight} />
-        <StationMarkers stations={stations} busRouteIds={busRouteIds} onSelect={handleStationClick} />
+        <ShapeLines shapes={shapes} routes={routes} highlight={planHighlight} hiddenRoutes={hiddenLines} />
+        <StationMarkers stations={stations} busRouteIds={busRouteIds} hiddenRouteIds={hiddenLines} onSelect={handleStationClick} />
         {/* Planned-route overlay: drawn after StationMarkers so the accent
-            interchange dots sit above the station dots they mark. Hidden
-            while a legend filter is active — the legend owns the highlight
-            (documented interaction, UI-UX-NEXT #3). */}
-        {activePlanRoute && !legendHighlight && (
+            interchange dots sit above the station dots they mark. */}
+        {activePlanRoute && (
           <RouteHighlight
             shapes={shapes}
             route={activePlanRoute}
