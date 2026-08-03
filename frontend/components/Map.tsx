@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
-import { Station, RoutePlanRoute, RouteLeg, ETA } from '../lib/types'
+import { Station, RoutePlanRoute, RouteLeg, ETA, Route } from '../lib/types'
 import { API_URL } from '../lib/api'
 import { useStationData, useVehicleData, useShapeData, useRouteData } from '../lib/hooks'
 import { VehicleMarker, UserLocation } from './VehicleMarkers'
@@ -10,6 +10,7 @@ import { ShapeLines } from './ShapeLines'
 import { StationMarkers } from './StationMarkers'
 import { StationSearch } from './StationSearch'
 import { StationPopup } from './StationPopup'
+import { RouteHighlight } from './RouteHighlight'
 import { routeHex } from '../lib/colors'
 
 // ---------------------------------------------------------------------------
@@ -223,7 +224,9 @@ export function TransitMap() {
   // ─── Local UI state ───────────────────────────────────────────────────
   const [selectedStation, setSelectedStation] = useState<Station | null>(null)
   const [showRoutePlanner, setShowRoutePlanner] = useState(false)
-  const [highlightRoute, setHighlightRoute] = useState<string | undefined>()
+  // Legend-filtered line (UI-UX-NEXT #3). Separate from the derived plan
+  // highlight so tapping a legend dot overrides the plan until tapped again.
+  const [legendHighlight, setLegendHighlight] = useState<string | undefined>()
   const [flyPos, setFlyPos] = useState<[number, number] | null>(null)
   const [routeFrom, setRouteFrom] = useState<Station | null>(null)
   const [routeTo, setRouteTo] = useState<Station | null>(null)
@@ -239,6 +242,8 @@ export function TransitMap() {
       setRouteResults(null); setRouteError(''); return
     }
     setRouteLoading(true); setRouteError(''); setRouteResults(null)
+    // A fresh plan owns the map highlight — drop any legend filter.
+    setLegendHighlight(undefined)
     fetch(`${API_URL}/api/route-plan?from=${routeFrom.stop_id}&to=${routeTo.stop_id}`)
       .then(r => { if (!r.ok) throw Error(); return r.json() })
       .then(data => {
@@ -247,7 +252,6 @@ export function TransitMap() {
           setRouteResults([])
         } else {
           setRouteResults(data.routes)
-          setHighlightRoute(data.routes[0].legs[0]?.route_id)
           addRecentSearch(routeFrom!, routeTo!)
           setRecentSearches(loadRecentSearches())
         }
@@ -260,6 +264,27 @@ export function TransitMap() {
       })
       .finally(() => setRouteLoading(false))
   }, [routeFrom, routeTo])
+
+  // ─── Map highlight (UI-UX-NEXT #2) ─────────────────────────────────────
+  // Route-plan highlight: collapsed → leg 1 of the best route (index 0);
+  // expanding a card → that card's full path. Gated on the planner being
+  // open, so it clears when the planner closes or results are cleared.
+  const planHighlight = useMemo(() => {
+    if (!showRoutePlanner || !routeResults || routeResults.length === 0) return undefined
+    const r = routeResults[routeExpandedIdx ?? 0]
+    if (!r || r.legs.length === 0) return undefined
+    const legs = routeExpandedIdx === null ? r.legs.slice(0, 1) : r.legs
+    return legs.map(l => l.route_id)
+  }, [showRoutePlanner, routeResults, routeExpandedIdx])
+
+  // Legend tap overrides the plan highlight (documented in UI-UX-NEXT #3):
+  // visual only — cards/popups unaffected. Tap again restores the plan.
+  const effectiveHighlight = legendHighlight ?? planHighlight
+
+  // Active plan card driving the RouteHighlight overlay (default: best route).
+  const activePlanRoute = showRoutePlanner && routeResults && routeResults.length > 0
+    ? routeResults[routeExpandedIdx ?? 0]
+    : undefined
 
   // ─── Boarding ETA cache (item #1) ─────────────────────────────────────
   // ETA lists fetched ONCE per unique boarding stop and cached in a ref
@@ -339,7 +364,6 @@ export function TransitMap() {
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%' }}>
       <BusToggle on={showBuses} onToggle={toggleBuses} />
-
       {!selectedStation && <div style={{
         position: 'absolute', top: 12, right: 12,
         zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
@@ -351,7 +375,7 @@ export function TransitMap() {
           position: 'sticky', top: 0, zIndex: 10000,
         }}>
           {[
-            { label: 'Stations', active: !showRoutePlanner, onClick: () => { setShowRoutePlanner(false); setHighlightRoute(undefined) } },
+            { label: 'Stations', active: !showRoutePlanner, onClick: () => { setShowRoutePlanner(false); setLegendHighlight(undefined) } },
             { label: 'Routes', active: showRoutePlanner, onClick: () => { setShowRoutePlanner(true); setSelectedStation(null) } },
           ].map(b => (
             <button key={b.label} onClick={b.onClick} style={{
@@ -387,7 +411,7 @@ export function TransitMap() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', background: 'var(--kv-surface)', opacity: 0.85, borderRadius: 'var(--radius-md)', padding: '0 var(--space-3)', boxShadow: 'var(--shadow-sm)', border: '1.5px solid var(--kv-border)' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--kv-success)" stroke="none" style={{ flexShrink: 0 }}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                       <span style={{ flex: 1, fontSize: 'var(--text-base)', padding: 'var(--space-3) 0', color: 'var(--kv-ink)', fontFamily: 'var(--font-ui)' }}>{routeFrom.stop_name}</span>
-                      <button onClick={() => { setRouteFrom(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null) }} style={{ background: 'var(--kv-border)', border: 'none', borderRadius: '50%', cursor: 'pointer', minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)', width: 'var(--touch-target-min)', height: 'var(--touch-target-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: 'var(--kv-muted)', fontSize: 'var(--text-sm)', lineHeight: 1 }}>✕</button>
+                      <button onClick={() => { setRouteFrom(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null); setLegendHighlight(undefined) }} style={{ background: 'var(--kv-border)', border: 'none', borderRadius: '50%', cursor: 'pointer', minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)', width: 'var(--touch-target-min)', height: 'var(--touch-target-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: 'var(--kv-muted)', fontSize: 'var(--text-sm)', lineHeight: 1 }}>✕</button>
                     </div>
                   </div>
                 ) : (
@@ -402,7 +426,7 @@ export function TransitMap() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', background: 'var(--kv-surface)', opacity: 0.85, borderRadius: 'var(--radius-md)', padding: '0 var(--space-3)', boxShadow: 'var(--shadow-sm)', border: '1.5px solid var(--kv-border)' }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--kv-danger)" stroke="none" style={{ flexShrink: 0 }}><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                       <span style={{ flex: 1, fontSize: 'var(--text-base)', padding: 'var(--space-3) 0', color: 'var(--kv-ink)', fontFamily: 'var(--font-ui)' }}>{routeTo.stop_name}</span>
-                      <button onClick={() => { setRouteTo(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null) }} style={{ background: 'var(--kv-border)', border: 'none', borderRadius: '50%', cursor: 'pointer', minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)', width: 'var(--touch-target-min)', height: 'var(--touch-target-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: 'var(--kv-muted)', fontSize: 'var(--text-sm)', lineHeight: 1 }}>✕</button>
+                      <button onClick={() => { setRouteTo(null); setRouteResults(null); setRouteError(''); setRouteExpandedIdx(null); setLegendHighlight(undefined) }} style={{ background: 'var(--kv-border)', border: 'none', borderRadius: '50%', cursor: 'pointer', minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)', width: 'var(--touch-target-min)', height: 'var(--touch-target-min)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0, color: 'var(--kv-muted)', fontSize: 'var(--text-sm)', lineHeight: 1 }}>✕</button>
                     </div>
                   </div>
                 ) : (
@@ -659,8 +683,20 @@ export function TransitMap() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution="&copy; OpenStreetMap contributors"
         />
-        <ShapeLines shapes={shapes} routes={routes} highlight={highlightRoute} />
+        <ShapeLines shapes={shapes} routes={routes} highlight={effectiveHighlight} />
         <StationMarkers stations={stations} busRouteIds={busRouteIds} onSelect={handleStationClick} />
+        {/* Planned-route overlay: drawn after StationMarkers so the accent
+            interchange dots sit above the station dots they mark. Hidden
+            while a legend filter is active — the legend owns the highlight
+            (documented interaction, UI-UX-NEXT #3). */}
+        {activePlanRoute && !legendHighlight && (
+          <RouteHighlight
+            shapes={shapes}
+            route={activePlanRoute}
+            fullPath={routeExpandedIdx !== null}
+            onStationClick={handleStationClick}
+          />
+        )}
         {visibleVehicles.map(v => <VehicleMarker key={v.vehicle_id} v={v} />)}
         <UserLocation />
         <FlyTo pos={flyPos} />

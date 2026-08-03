@@ -18,7 +18,8 @@ export const ShapeLines = memo(function ShapeLines({
 }: {
   shapes: Shape[]
   routes: Route[]
-  highlight?: string
+  // Single route_id (legend filter) or an array (multi-leg plan highlight).
+  highlight?: string | string[]
 }) {
   const map = useMap()
   const [zoom, setZoom] = useState(map.getZoom())
@@ -48,7 +49,10 @@ export const ShapeLines = memo(function ShapeLines({
   return (
     <>
       {shapes.map(s => {
-        const isHL = highlight && s.route_id === highlight
+        // Multi-leg plan highlight (string[]) or single-route legend filter.
+        const isHL = Array.isArray(highlight)
+          ? highlight.includes(s.route_id)
+          : highlight === s.route_id
         // Skip bus route polylines entirely — unless this exact route is
         // highlighted by the route planner (highlight overrides the exclusion).
         if (!isHL && busRouteIds.has(s.route_id)) return null
@@ -66,7 +70,13 @@ export const ShapeLines = memo(function ShapeLines({
           <Polyline
             key={s.shape_id}
             positions={simplified}
-            pathOptions={{ color, weight: isHL ? 6 : 4, opacity: isHL ? 1 : 0.7 }}
+            pathOptions={{
+              color,
+              weight: isHL ? 6 : 4,
+              // Dim the whole network hard (0.18) while any highlight is
+              // active so the planned route / legend line reads instantly.
+              opacity: isHL ? 1 : highlight ? 0.18 : 0.7,
+            }}
           />
         )
       })}
