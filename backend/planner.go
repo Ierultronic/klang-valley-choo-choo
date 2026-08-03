@@ -28,6 +28,7 @@ type planGraph struct {
 	stopLoc      map[string]planStop   // stop_id → stop (name + coords)
 	routesByStop map[string][]string   // stop_id → route_ids serving it
 	stopsByRoute map[string][]planStop // route_id → stops in trip order
+	shapeByRoute map[string]string     // route_id → shape_id (representative trip)
 	transfers    map[string][]transferEdge
 }
 
@@ -320,12 +321,14 @@ func buildPlanResults(ctx context.Context, repo TransitRepo, g *planGraph, journ
 				break
 			}
 			l := RouteLeg{
-				RouteID:    leg.routeID,
-				RouteName:  meta.RouteLongName,
-				RouteColor: meta.RouteColor,
-				FromStop:   g.stopLoc[leg.fromID].toStop(),
-				ToStop:     g.stopLoc[leg.toID].toStop(),
-				Stops:      stops,
+				RouteID:     leg.routeID,
+				RouteName:   meta.RouteLongName,
+				RouteColor:  meta.RouteColor,
+				DirectionID: legDirection(g, leg.routeID, leg.fromID, leg.toID),
+				ShapeID:     g.shapeByRoute[leg.routeID],
+				FromStop:    g.stopLoc[leg.fromID].toStop(),
+				ToStop:      g.stopLoc[leg.toID].toStop(),
+				Stops:       stops,
 			}
 			if len(stops) > 0 {
 				l.StopsBetween = len(stops) - 1
@@ -420,6 +423,30 @@ func journeyStopCount(g *planGraph, j journey) int {
 		total += toIdx - fromIdx + 1
 	}
 	return total
+}
+
+// legDirection returns 1 when the ride runs REVERSE of the route's
+// representative trip (board stop comes after alight stop in trip order),
+// else 0. Same convention graphRouteStops uses for normalization.
+// Falls back to 0 (forward) when either stop isn't on the rep trip.
+func legDirection(g *planGraph, routeID, fromID, toID string) int {
+	stops := g.stopsByRoute[routeID]
+	fromIdx, toIdx := -1, -1
+	for i, s := range stops {
+		if s.ID == fromID && fromIdx == -1 {
+			fromIdx = i
+		}
+		if s.ID == toID {
+			toIdx = i
+		}
+	}
+	if fromIdx == -1 || toIdx == -1 {
+		return 0
+	}
+	if fromIdx > toIdx {
+		return 1
+	}
+	return 0
 }
 
 // routeStopIdx returns the ordered indices of fromID/toID on a route's

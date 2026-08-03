@@ -345,10 +345,11 @@ func (r *pgxTransitRepo) GetDirectRoutes(ctx context.Context, fromStopID, toStop
 // repopulated.
 func (r *pgxTransitRepo) GetPlanGraph(ctx context.Context) (*planGraph, error) {
 	g := &planGraph{
-		stopLoc:     make(map[string]planStop),
+		stopLoc:      make(map[string]planStop),
 		routesByStop: make(map[string][]string),
 		stopsByRoute: make(map[string][]planStop),
-		transfers:   make(map[string][]transferEdge),
+		shapeByRoute: make(map[string]string),
+		transfers:    make(map[string][]transferEdge),
 	}
 
 	rows, err := r.pool.Query(ctx, `SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops`)
@@ -411,6 +412,22 @@ func (r *pgxTransitRepo) GetPlanGraph(ctx context.Context) (*planGraph, error) {
 		}
 		if s, ok := g.stopLoc[stopID]; ok {
 			g.stopsByRoute[routeID] = append(g.stopsByRoute[routeID], s)
+		}
+	}
+	rows.Close()
+
+	// Representative shape per rail route → shape_id (for leg polylines).
+	rows, err = r.pool.Query(ctx, `
+		SELECT DISTINCT ON (r.route_id) r.route_id, t.shape_id
+		FROM routes r JOIN trips t ON r.route_id = t.route_id
+		WHERE r.route_type <> 3`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var routeID, shapeID string
+		if err := rows.Scan(&routeID, &shapeID); err == nil {
+			g.shapeByRoute[routeID] = shapeID
 		}
 	}
 	rows.Close()
