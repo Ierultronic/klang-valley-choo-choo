@@ -26,9 +26,11 @@ function minsUntil(arrival: string): string {
   return `${Math.floor(d / 60)}h ${d % 60}m`
 }
 
-export function StationPopup({ station, onClose }: {
+export function StationPopup({ station, onClose, onPlanFrom, onPlanTo }: {
   station: Station
   onClose: () => void
+  onPlanFrom: (s: Station) => void
+  onPlanTo: (s: Station) => void
 }) {
   const [etas, setEtas] = useState<ETA[]>([])
   const [loading, setLoading] = useState(true)
@@ -76,6 +78,42 @@ export function StationPopup({ station, onClose }: {
             minWidth: 'var(--touch-target-min)', minHeight: 'var(--touch-target-min)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>×</button>
+        </div>
+
+        {/* Route from/to here — closes the popup↔planner loop */}
+        <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
+          <button
+            onClick={() => onPlanFrom(station)}
+            style={{
+              flex: 1, height: 'var(--touch-target-min)', borderRadius: 'var(--radius-md)',
+              fontSize: 'var(--text-sm)', fontWeight: 600, fontFamily: 'var(--font-ui)',
+              background: 'var(--kv-bg)', border: '1px solid var(--kv-border)',
+              color: 'var(--kv-ink)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)',
+              transition: 'background .1s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--kv-surface)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'var(--kv-bg)')}
+          >
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--kv-success)', flexShrink: 0 }} />
+            From here
+          </button>
+          <button
+            onClick={() => onPlanTo(station)}
+            style={{
+              flex: 1, height: 'var(--touch-target-min)', borderRadius: 'var(--radius-md)',
+              fontSize: 'var(--text-sm)', fontWeight: 600, fontFamily: 'var(--font-ui)',
+              background: 'var(--kv-bg)', border: '1px solid var(--kv-border)',
+              color: 'var(--kv-ink)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-2)',
+              transition: 'background .1s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--kv-surface)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'var(--kv-bg)')}
+          >
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--kv-danger)', flexShrink: 0 }} />
+            To here
+          </button>
         </div>
 
         {loading ? (

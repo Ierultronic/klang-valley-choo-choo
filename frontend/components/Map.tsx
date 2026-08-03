@@ -213,6 +213,31 @@ export function TransitMap() {
     setRouteFrom(t); setRouteTo(f)
   }
 
+  // "From here" / "To here" from the station popup: close popup, open the
+  // planner and slot the station in. If the same station already occupies
+  // the OTHER slot, swap instead (existing swapRoute semantics).
+  const handlePlanFrom = useCallback((s: Station) => {
+    setSelectedStation(null)
+    setShowRoutePlanner(true)
+    if (routeTo?.stop_id === s.stop_id) {
+      setRouteFrom(routeTo)
+      setRouteTo(routeFrom)
+    } else {
+      setRouteFrom(s)
+    }
+  }, [routeFrom, routeTo])
+
+  const handlePlanTo = useCallback((s: Station) => {
+    setSelectedStation(null)
+    setShowRoutePlanner(true)
+    if (routeFrom?.stop_id === s.stop_id) {
+      setRouteTo(routeFrom)
+      setRouteFrom(routeTo)
+    } else {
+      setRouteTo(s)
+    }
+  }, [routeFrom, routeTo])
+
   const handleStationClick = useCallback((s: Station) => {
     setSelectedStation(s)
     setShowRoutePlanner(false)
@@ -542,7 +567,12 @@ export function TransitMap() {
         <UserLocation />
         <FlyTo pos={flyPos} />
       </MapContainer>
-      {selectedStation && <StationPopup station={selectedStation} onClose={() => setSelectedStation(null)} />}
+      {selectedStation && <StationPopup
+        station={selectedStation}
+        onClose={() => setSelectedStation(null)}
+        onPlanFrom={handlePlanFrom}
+        onPlanTo={handlePlanTo}
+      />}
     </div>
   )
 }
